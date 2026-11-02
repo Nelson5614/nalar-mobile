@@ -8,7 +8,7 @@ import { Button, Screen } from '@/components/ui';
 import { PLATFORM } from '@/lib/config';
 import { useSession } from '@/lib/session';
 
-export default function Home() {
+export default function Me() {
   const { launch, reload, signOut } = useSession();
 
   // Credits are bought on the web. Coming back to the app is the signal to
