@@ -89,6 +89,17 @@ export default function CreatorProfile() {
             {!loaded.profile.is_me ? (
               <Button label="Message" variant="secondary" onPress={() => message(loaded.profile.id)} />
             ) : null}
+            {loaded.profile.can_offer_consultations && !loaded.profile.is_me ? (
+              <Button
+                label="Book a consultation"
+                onPress={() =>
+                  router.push({
+                    pathname: '/consultations/[creator]',
+                    params: { creator: loaded.profile.public_id ?? String(loaded.profile.id) },
+                  })
+                }
+              />
+            ) : null}
             {messageError ? <ErrorText>{messageError}</ErrorText> : null}
           </View>
 
