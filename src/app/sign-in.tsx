@@ -71,6 +71,9 @@ export default function SignIn() {
       />
       {error ? <ErrorText>{error}</ErrorText> : null}
       <Button label="Sign in" busy={busy} disabled={!email || !password} onPress={submit} />
+      <ThemedText type="linkPrimary" accessibilityRole="link" onPress={() => router.push('/forgot-password')}>
+        Forgot your password?
+      </ThemedText>
       <Button label="Back" variant="secondary" onPress={() => router.back()} />
     </Screen>
   );

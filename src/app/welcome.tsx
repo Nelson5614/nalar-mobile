@@ -12,7 +12,8 @@ export default function Welcome() {
       <ThemedText themeColor="textSecondary">
         Videos, sparks, circles and consultations from the creators you follow.
       </ThemedText>
-      <Button label="Sign in" onPress={() => router.push('/sign-in')} />
+      <Button label="Create an account" onPress={() => router.push('/register')} />
+      <Button label="Sign in" variant="secondary" onPress={() => router.push('/sign-in')} />
     </Screen>
   );
 }

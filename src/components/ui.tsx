@@ -75,6 +75,40 @@ export function Field({ label, error, ...input }: TextInputProps & { label: stri
   );
 }
 
+type CheckboxProps = { label: string; checked: boolean; onChange: (checked: boolean) => void; error?: string };
+
+export function Checkbox({ label, checked, onChange, error }: CheckboxProps) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.field}>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityLabel={label}
+        accessibilityState={{ checked }}
+        onPress={() => onChange(!checked)}
+        style={styles.checkRow}>
+        <View
+          style={[
+            styles.box,
+            { borderColor: error ? theme.danger : theme.primary },
+            checked && { backgroundColor: theme.primary },
+          ]}>
+          {checked ? (
+            <ThemedText type="smallBold" style={{ color: '#fff' }}>
+              ✓
+            </ThemedText>
+          ) : null}
+        </View>
+        <ThemedText type="small" style={styles.checkLabel}>
+          {label}
+        </ThemedText>
+      </Pressable>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+    </View>
+  );
+}
+
 export function ErrorText({ children }: PropsWithChildren) {
   return (
     <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
@@ -96,4 +130,7 @@ const styles = StyleSheet.create({
   },
   field: { gap: Spacing.one },
   input: { minHeight: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: Spacing.three, fontSize: 16 },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 44 },
+  box: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  checkLabel: { flex: 1 },
 });
