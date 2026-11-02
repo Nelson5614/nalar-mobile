@@ -18,6 +18,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+jest.mock('@/components/notifications-list', () => {
+  const { Text } = jest.requireActual('react-native');
+  return { __esModule: true, default: () => <Text>notifications list</Text> };
+});
+
 const thread = (id: number, name: string, last: object | null, unread = 0) => ({
   id,
   other_user: { id: id + 100, name, profile_photo_url: null },
@@ -64,6 +69,17 @@ describe('<Inbox />', () => {
     await render(<Inbox />);
 
     expect(await screen.findByText(/No messages yet/)).toBeTruthy();
+  });
+
+  test('the Notifications switch shows notifications instead of threads', async () => {
+    mockGet.mockResolvedValue({ data: [thread(1, 'Sarah Creator', null)], meta: { current_page: 1, last_page: 1 } });
+    await render(<Inbox />);
+    await screen.findByText('Sarah Creator');
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Notifications' }));
+
+    expect(screen.getByText('notifications list')).toBeTruthy();
+    expect(screen.queryByText('Sarah Creator')).toBeNull();
   });
 
   test('a failed load shows the safe message', async () => {

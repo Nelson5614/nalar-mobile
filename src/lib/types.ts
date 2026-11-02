@@ -81,6 +81,21 @@ export type ConversationPage = {
   meta: { current_page: number; last_page: number };
 };
 
+export type AppNotification = {
+  id: string;
+  type: string | null;
+  message: string;
+  url: string | null;
+  image_url: string | null;
+  read: boolean;
+  created_at: string | null;
+};
+
+export type NotificationFeed = {
+  data: AppNotification[];
+  meta: { current_page: number; last_page: number; unread_count: number };
+};
+
 export type IssuedToken = {
   token: string;
   token_type?: string;
