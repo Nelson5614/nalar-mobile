@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -82,7 +83,19 @@ export default function Home() {
         onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reload(setRefreshing)} />}
         contentContainerStyle={styles.content}
-        ListHeaderComponent={<ThemedText type="subtitle">Home</ThemedText>}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <ThemedText type="subtitle">Home</ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+              onPress={() => router.push('/search')}
+              hitSlop={8}
+              style={({ pressed }) => [styles.searchButton, pressed && { opacity: 0.6 }]}>
+              <SymbolView name="magnifyingglass" tintColor={theme.text} size={24} />
+            </Pressable>
+          </View>
+        }
         ListFooterComponent={loadingMore ? <ActivityIndicator /> : undefined}
         ListEmptyComponent={
           loading ? (
@@ -138,6 +151,8 @@ function FeedCard({ item }: { item: FeedItem }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.four },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  searchButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   message: { gap: Spacing.three },
   card: { gap: Spacing.one },
   thumb: { width: '100%', aspectRatio: 16 / 9, borderRadius: 12, overflow: 'hidden' },

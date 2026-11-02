@@ -62,6 +62,15 @@ describe('<Home /> feed', () => {
     expect(mockGet).toHaveBeenLastCalledWith('/api/v1/feed?page=2');
   });
 
+  test('the search button opens search', async () => {
+    mockGet.mockResolvedValue(page([video(1)]));
+    await render(<Home />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Search' }));
+
+    expect(mockPush).toHaveBeenCalledWith('/search');
+  });
+
   test('an empty feed says so', async () => {
     mockGet.mockResolvedValue(page([]));
 

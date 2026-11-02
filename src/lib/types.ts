@@ -96,6 +96,25 @@ export type NotificationFeed = {
   meta: { current_page: number; last_page: number; unread_count: number };
 };
 
+export type SearchCreator = {
+  id: number;
+  public_id: string | null;
+  name: string;
+  profile_photo_url: string | null;
+  bio_excerpt: string | null;
+};
+
+export type SearchVideo = {
+  id: number;
+  public_id: string | null;
+  title: string;
+  creator_name: string | null;
+  thumbnail_url: string | null;
+  requires_payment: boolean;
+};
+
+export type SearchResponse = { data: { creators: SearchCreator[]; videos: SearchVideo[] } };
+
 export type IssuedToken = {
   token: string;
   token_type?: string;
