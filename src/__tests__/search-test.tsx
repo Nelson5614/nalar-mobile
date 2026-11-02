@@ -74,6 +74,16 @@ describe('<Search />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/watch/[id]', params: { id: 'v3' } });
   });
 
+  test('opening a creator goes to their profile', async () => {
+    mockGet.mockResolvedValue(results);
+    await render(<Search />);
+    await typeAndWait('studio');
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Lerato Studio' }));
+
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/creator/[id]', params: { id: 'c6' } });
+  });
+
   test('nothing found says so', async () => {
     mockGet.mockResolvedValue({ data: { creators: [], videos: [] } });
     await render(<Search />);

@@ -90,7 +90,16 @@ export default function Watch() {
             />
             <View style={styles.padded}>
               <ThemedText type="subtitle">{loaded.media.title}</ThemedText>
-              <ThemedText type="smallBold" themeColor="textSecondary">
+              <ThemedText
+                type="smallBold"
+                themeColor="primary"
+                accessibilityRole="link"
+                onPress={() =>
+                  router.push({
+                    pathname: '/creator/[id]',
+                    params: { id: loaded.media.creator.public_id ?? String(loaded.media.creator.id) },
+                  })
+                }>
                 {loaded.media.creator.name}
               </ThemedText>
               {signedIn && signedIn.me.id !== loaded.media.creator.id ? (

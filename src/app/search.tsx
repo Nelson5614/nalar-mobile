@@ -78,14 +78,21 @@ export default function Search() {
                   Creators
                 </ThemedText>
                 {current.creators.map((creator) => (
-                  <View key={creator.id} style={styles.row}>
+                  <Pressable
+                    key={creator.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={creator.name}
+                    onPress={() =>
+                      router.push({ pathname: '/creator/[id]', params: { id: creator.public_id ?? String(creator.id) } })
+                    }
+                    style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
                     <ThemedText type="smallBold">{creator.name}</ThemedText>
                     {creator.bio_excerpt ? (
                       <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
                         {creator.bio_excerpt}
                       </ThemedText>
                     ) : null}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             ) : null}

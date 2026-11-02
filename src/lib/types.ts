@@ -17,7 +17,35 @@ export type Me = {
   [key: string]: unknown;
 };
 
-export type Creator = { id: number; name: string; profile_photo_url?: string | null };
+export type Creator = { id: number; public_id?: string | null; name: string; profile_photo_url?: string | null };
+
+export type CreatorProfileData = {
+  id: number;
+  public_id: string | null;
+  name: string;
+  profile_photo_url: string | null;
+  cover_image_url: string | null;
+  bio: string | null;
+  category: string | null;
+  badges: { slug: string; name: string }[];
+  subscriber_count: number;
+  video_count: number;
+  sparks_count: number;
+  is_me: boolean;
+  is_subscribed: boolean;
+  can_offer_consultations: boolean;
+  videos: {
+    id: number;
+    public_id: string | null;
+    title: string;
+    thumbnail_url: string | null;
+    thumbnail_token: string | null;
+    requires_payment: boolean;
+    is_unlocked: boolean;
+    views: number;
+  }[];
+  series: { id: number; title: string; is_premium: boolean; media_count: number }[];
+};
 
 // Only `media` items open in the app so far; the feed also sends series, polls
 // and suggestions.

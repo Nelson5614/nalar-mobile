@@ -189,6 +189,15 @@ describe('<Watch />', () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/conversation/[id]', params: { id: '12' } });
   });
 
+  test('the creator’s name opens their profile', async () => {
+    respond(detail({ creator: { id: 6, public_id: 'c6', name: 'Sarah Creator' } }));
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('link', { name: 'Sarah Creator' }));
+
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/creator/[id]', params: { id: 'c6' } });
+  });
+
   test('a failed load shows the safe message', async () => {
     mockGet.mockRejectedValue(new ApiError(0, 'We can’t reach Nalar right now. Check your connection and try again.'));
 
