@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
@@ -38,6 +38,18 @@ export default function Watch() {
     balance: signedIn?.me.credit_balance ?? 0,
     topUpUrl: signedIn?.config.top_up?.link_enabled?.[PLATFORM] ? signedIn.config.top_up.url : undefined,
   };
+
+  const [messageError, setMessageError] = useState('');
+
+  async function messageCreator(creatorId: number) {
+    setMessageError('');
+    try {
+      const started = await api.post<{ data: { id: number } }>(`/api/v1/conversations/start/${creatorId}`);
+      router.push({ pathname: '/conversation/[id]', params: { id: String(started.data.id) } });
+    } catch (e) {
+      setMessageError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.');
+    }
+  }
 
   // The new balance shows in Me, and the video now loads as unlocked.
   async function afterUnlock() {
@@ -81,6 +93,14 @@ export default function Watch() {
               <ThemedText type="smallBold" themeColor="textSecondary">
                 {loaded.media.creator.name}
               </ThemedText>
+              {signedIn && signedIn.me.id !== loaded.media.creator.id ? (
+                <Button
+                  label={`Message ${loaded.media.creator.name}`}
+                  variant="secondary"
+                  onPress={() => messageCreator(loaded.media.creator.id)}
+                />
+              ) : null}
+              {messageError ? <ErrorText>{messageError}</ErrorText> : null}
               {loaded.media.description ? <ThemedText>{loaded.media.description}</ThemedText> : null}
             </View>
           </>

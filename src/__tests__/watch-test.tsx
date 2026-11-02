@@ -31,9 +31,12 @@ jest.mock('expo-web-browser', () => ({
   openBrowserAsync: (...args: unknown[]) => mockOpenBrowser(...args),
 }));
 
+const mockPush = jest.fn();
+
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '4' }),
   Stack: { Screen: () => null },
+  router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 
 jest.mock('@/components/protected-video', () => {
@@ -173,6 +176,17 @@ describe('<Watch />', () => {
     expect(await screen.findByText('You do not have enough credits to unlock this content.')).toBeTruthy();
     await waitFor(() => expect(screen.getByText('Unlock this video for 30 credits.')).toBeTruthy());
     expect(mockReload).not.toHaveBeenCalled();
+  });
+
+  test('messaging the creator opens the conversation with them', async () => {
+    respond(detail());
+    mockPost.mockResolvedValue({ data: { id: 12 } });
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Message Sarah Creator' }));
+
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/conversations/start/6');
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/conversation/[id]', params: { id: '12' } });
   });
 
   test('a failed load shows the safe message', async () => {

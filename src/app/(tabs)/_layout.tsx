@@ -33,6 +33,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+          tabBarIcon: ({ color }) => <TabIcon name="bubble.left.and.bubble.right.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="me"
         options={{ title: 'Me', tabBarIcon: ({ color }) => <TabIcon name="person.crop.circle" color={color} /> }}
       />

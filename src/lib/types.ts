@@ -55,6 +55,32 @@ export type Spark = {
 
 export type SparksPage = { data: Spark[]; next_cursor: string | null };
 
+export type ChatUser = { id: number; name: string; profile_photo_url?: string | null };
+
+export type ConversationSummary = {
+  id: number;
+  other_user: ChatUser | null;
+  last_message: { body: string; is_mine: boolean; attachment_type: string | null } | null;
+  unread_count: number;
+  last_message_at: string | null;
+};
+
+export type ChatMessage = {
+  id: number;
+  body: string;
+  is_mine: boolean;
+  created_at: string | null;
+  attachment_type: string | null;
+  reply_to: { id: number; body: string; user_name: string | null } | null;
+  user: ChatUser | null;
+};
+
+export type ConversationPage = {
+  data: { id: number; other_user: ChatUser | null };
+  messages: ChatMessage[];
+  meta: { current_page: number; last_page: number };
+};
+
 export type IssuedToken = {
   token: string;
   token_type?: string;
