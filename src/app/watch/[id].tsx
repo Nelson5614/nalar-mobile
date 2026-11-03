@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import ProtectedVideo from '@/components/protected-video';
+import { Comments, UpNext, VideoDetails } from '@/components/watch';
 import { ThemedText } from '@/components/themed-text';
 import { Button, ErrorText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -85,6 +86,21 @@ export default function Watch() {
     };
   }, [series]);
 
+  const me = signedIn
+    ? {
+        id: signedIn.me.id,
+        name: signedIn.me.name,
+        profile_photo_url: (signedIn.me.profile_photo_url as string | null | undefined) ?? null,
+      }
+    : null;
+
+  // Counted once a video actually opens to play, as the web player does.
+  const playable = loaded && 'media' in loaded && loaded.playback.kind === 'play' ? loaded.media.id : null;
+  useEffect(() => {
+    if (playable === null) return;
+    api.post(`/api/v1/media/${playable}/track-view`)?.catch?.(() => {});
+  }, [playable]);
+
   const current =
     playlist && loaded && 'media' in loaded ? playlist.media.findIndex((e) => e.id === loaded.media.id) : -1;
   const next =
@@ -114,31 +130,19 @@ export default function Watch() {
               onUnlocked={afterUnlock}
               onEnd={next && playlist ? () => router.replace(episodeRoute(next, playlist.id)) : undefined}
             />
-            <View style={styles.padded}>
-              <ThemedText type="subtitle">{loaded.media.title}</ThemedText>
-              <ThemedText
-                type="smallBold"
-                themeColor="primary"
-                accessibilityRole="link"
-                onPress={() =>
-                  router.push({
-                    pathname: '/creator/[id]',
-                    params: { id: loaded.media.creator.public_id ?? String(loaded.media.creator.id) },
-                  })
-                }>
-                {loaded.media.creator.name}
-              </ThemedText>
-              {signedIn && signedIn.me.id !== loaded.media.creator.id ? (
-                <Button
-                  label={`Message ${loaded.media.creator.name}`}
-                  variant="secondary"
-                  onPress={() => messageCreator(loaded.media.creator.id)}
-                />
-              ) : null}
-              {messageError ? <ErrorText>{messageError}</ErrorText> : null}
-              {loaded.media.description ? <ThemedText>{loaded.media.description}</ThemedText> : null}
-            </View>
-            {playlist && current >= 0 ? <PlaylistPanel series={playlist} current={current} /> : null}
+            <VideoDetails media={loaded.media} me={me} onMessage={() => messageCreator(loaded.media.creator.id)} />
+            {messageError ? (
+              <View style={styles.padded}>
+                <ErrorText>{messageError}</ErrorText>
+              </View>
+            ) : null}
+            {playlist && current >= 0 ? (
+              <View style={styles.playlistGap}>
+                <PlaylistPanel series={playlist} current={current} />
+              </View>
+            ) : null}
+            <Comments mediaId={loaded.media.id} me={me} />
+            <UpNext mediaId={loaded.media.id} />
           </>
         )}
       </ScrollView>
@@ -334,6 +338,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.five },
   padded: { padding: Spacing.three, gap: Spacing.two },
   locked: { padding: Spacing.four, gap: Spacing.three },
+  playlistGap: { paddingTop: Spacing.three },
   playlist: { marginHorizontal: Spacing.three, borderRadius: 12, paddingVertical: Spacing.two, overflow: 'hidden' },
   playlistHead: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.half },
   playlistRow: {

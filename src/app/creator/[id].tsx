@@ -10,6 +10,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { api } from '@/lib/session';
+import { shortDate } from '@/lib/time';
 import type { CreatorProfileData } from '@/lib/types';
 
 type Loaded = { profile: CreatorProfileData } | { error: string };
@@ -18,9 +19,6 @@ type SeriesCard = CreatorProfileData['series'][number];
 type VideoTab = 'free' | 'premium' | 'series';
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
-
-const shortDate = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
 
 async function load(id: string): Promise<Loaded> {
   try {

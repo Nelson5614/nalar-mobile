@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 
 import Watch from '@/app/watch/[id]';
 import { ApiError } from '@/lib/api';
@@ -8,18 +8,20 @@ const mockGet = jest.fn();
 const mockPost = jest.fn();
 const mockReload = jest.fn();
 const mockOpenBrowser = jest.fn();
+const mockDelete = jest.fn();
 let mockBalance = 1000;
 
 jest.mock('@/lib/session', () => ({
   api: {
     get: (...args: unknown[]) => mockGet(...args),
     post: (...args: unknown[]) => mockPost(...args),
+    delete: (...args: unknown[]) => mockDelete(...args),
   },
   useSession: () => ({
     launch: {
       route: 'home',
       config: { top_up: { url: 'http://nalar.test/credits', link_enabled: { ios: true, android: true } } },
-      me: { watermark_tag: 'E7A8-9D0A', credit_balance: mockBalance },
+      me: { id: 2, name: 'John Fan', watermark_tag: 'E7A8-9D0A', credit_balance: mockBalance },
     },
     reload: (...args: unknown[]) => mockReload(...args),
   }),
@@ -111,8 +113,22 @@ describe('<Watch /> inside a series', () => {
       creator: { id: 6, public_id: 'c6', name: 'Sarah Creator' },
       viewer_is_creator: false,
       media: [
-        { id: 4, title: 'Part 1', views: 2, requires_payment: false, current_user_can_play: true, playback_pending: false },
-        { id: 5, title: 'Part 2', views: 0, requires_payment: false, current_user_can_play: true, playback_pending: false },
+        {
+          id: 4,
+          title: 'Part 1',
+          views: 2,
+          requires_payment: false,
+          current_user_can_play: true,
+          playback_pending: false,
+        },
+        {
+          id: 5,
+          title: 'Part 2',
+          views: 0,
+          requires_payment: false,
+          current_user_can_play: true,
+          playback_pending: false,
+        },
       ],
     },
   };
@@ -159,7 +175,9 @@ describe('<Watch />', () => {
 
     await render(<Watch />);
 
-    expect(await screen.findByText('playing https://stream.mux.com/pb-1.m3u8 protect=false mark=E7A8-9D0A')).toBeTruthy();
+    expect(
+      await screen.findByText('playing https://stream.mux.com/pb-1.m3u8 protect=false mark=E7A8-9D0A'),
+    ).toBeTruthy();
     expect(screen.getByText('Masterclass')).toBeTruthy();
     expect(screen.getByText('Sarah Creator')).toBeTruthy();
   });
@@ -199,12 +217,16 @@ describe('<Watch />', () => {
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Unlock for 30 credits' }));
 
-    expect(Alert.alert).toHaveBeenCalledWith('Unlock this video?', 'This uses 30 of your 1000 credits.', expect.any(Array));
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'Unlock this video?',
+      'This uses 30 of your 1000 credits.',
+      expect.any(Array),
+    );
     expect(
       await screen.findByText('playing https://stream.mux.com/pb-1.m3u8?token=tok-9 protect=true mark=E7A8-9D0A'),
     ).toBeTruthy();
-    expect(mockPost).toHaveBeenCalledTimes(1);
-    expect(mockPost).toHaveBeenCalledWith('/api/v1/content/4/unlock');
+    // Once only: opening the video afterwards also counts a view.
+    expect(mockPost.mock.calls.filter(([path]) => path === '/api/v1/content/4/unlock')).toHaveLength(1);
     expect(mockReload).toHaveBeenCalled();
   });
 
@@ -251,7 +273,7 @@ describe('<Watch />', () => {
     mockPost.mockResolvedValue({ data: { id: 12 } });
     await render(<Watch />);
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Message Sarah Creator' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Message' }));
 
     expect(mockPost).toHaveBeenCalledWith('/api/v1/conversations/start/6');
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/conversation/[id]', params: { id: '12' } });
@@ -289,6 +311,242 @@ describe('<Watch />', () => {
 
     await render(<Watch />);
 
-    expect(await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.')).toBeTruthy();
+    expect(
+      await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.'),
+    ).toBeTruthy();
+  });
+});
+
+describe('<Watch /> laid out like YouTube', () => {
+  const comment = (extra: object = {}) => ({
+    id: 30,
+    content: 'Great lighting.',
+    created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    user: { id: 8, name: 'Mary Viewer', profile_photo_url: null },
+    likes_count: 2,
+    liked_by_me: false,
+    replies_count: 1,
+    replies: [
+      {
+        id: 31,
+        content: 'Thank you!',
+        created_at: new Date().toISOString(),
+        user: { id: 6, name: 'Sarah Creator', profile_photo_url: null },
+      },
+    ],
+    ...extra,
+  });
+
+  const video = (extra: object = {}) =>
+    detail({
+      title: 'Welcome to Nalar',
+      description: 'A quick look around the studio, the lights and the desk.',
+      views: 12,
+      created_at: '2026-11-02T10:00:00+00:00',
+      likes_count: 5,
+      is_liked: false,
+      creator: { id: 6, public_id: 'c6', name: 'Sarah Creator', profile_photo_url: null, subscribers_count: 3 },
+      ...extra,
+    });
+
+  const related = [
+    {
+      id: 7,
+      public_id: 'v7',
+      title: 'Colour grading',
+      views: 4,
+      created_at: '2026-11-01T10:00:00+00:00',
+      thumbnail_url: null,
+      requires_payment: true,
+      is_unlocked: false,
+      required_credits: 25,
+      creator: { id: 6, name: 'Sarah Creator' },
+    },
+  ];
+
+  function serve(media: object = video(), comments: object[] = [comment()], subscribed = false) {
+    mockGet.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/media/4') return media;
+      if (path === '/api/v1/media/4/comments')
+        return { comments, total: comments.length, current_page: 1, last_page: 1 };
+      if (path === '/api/v1/media/4/related') return related;
+      if (path === '/api/v1/subscription/check?creator_id=6') return { is_subscribed: subscribed };
+      throw new Error(`unexpected ${path}`);
+    });
+  }
+
+  test('title, views and date, the channel with its subscribers, and the action row', async () => {
+    serve();
+    await render(<Watch />);
+
+    expect(await screen.findByText('Welcome to Nalar')).toBeTruthy();
+    expect(screen.getByText('12 views · Nov 2, 2026')).toBeTruthy();
+    expect(screen.getByText('3 subscribers')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Subscribe' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Like, 5 likes' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Message' })).toBeTruthy();
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/media/4/track-view');
+  });
+
+  test('subscribing follows the creator, and pressing again unfollows', async () => {
+    serve();
+    mockPost.mockResolvedValue({});
+    mockDelete.mockResolvedValue({});
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Subscribe' }));
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/subscriptions', { creator_id: 6 });
+    expect(await screen.findByText('4 subscribers')).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Subscribed' }));
+    expect(mockDelete).toHaveBeenCalledWith('/api/v1/subscriptions?creator_id=6');
+    expect(await screen.findByRole('button', { name: 'Subscribe' })).toBeTruthy();
+  });
+
+  test('your own video has no subscribe button', async () => {
+    serve(video({ creator: { id: 2, name: 'John Fan', subscribers_count: 0 } }));
+    await render(<Watch />);
+
+    await screen.findByText('Welcome to Nalar');
+    expect(screen.queryByRole('button', { name: 'Subscribe' })).toBeNull();
+  });
+
+  test('liking counts up and fills in, as the server says', async () => {
+    serve();
+    mockPost.mockImplementation(async (path: string) =>
+      path === '/api/v1/media/4/toggle-like' ? { action: 'liked', likes_count: 6 } : {},
+    );
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Like, 5 likes' }));
+
+    expect(await screen.findByRole('button', { name: 'Unlike, 6 likes' })).toBeTruthy();
+  });
+
+  test('share hands the link to the phone’s share sheet', async () => {
+    serve();
+    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction', activityType: undefined });
+    mockPost.mockImplementation(async (path: string) =>
+      path === '/api/v1/media/4/share' ? { share_url: 'https://nalar.test/watch/v4' } : {},
+    );
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Share' }));
+
+    await waitFor(() =>
+      expect(share).toHaveBeenCalledWith({ message: 'Welcome to Nalar https://nalar.test/watch/v4' }),
+    );
+  });
+
+  test('the description opens out', async () => {
+    serve();
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Show more of the description' }));
+
+    expect(screen.getByRole('button', { name: 'Show less of the description' })).toBeTruthy();
+  });
+
+  test('comments show who said what, when, with likes and replies', async () => {
+    serve();
+    await render(<Watch />);
+
+    expect(await screen.findByText('Comments')).toBeTruthy();
+    expect(screen.getByText('Great lighting.')).toBeTruthy();
+    expect(screen.getByText('Mary Viewer · 5 minutes ago')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Like comment by Mary Viewer, 2 likes' })).toBeTruthy();
+    expect(screen.queryByText('Thank you!')).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: '1 reply' }));
+
+    expect(screen.getByText('Thank you!')).toBeTruthy();
+  });
+
+  test('a new comment posts and appears at the top', async () => {
+    serve();
+    mockPost.mockImplementation(async (path: string, body?: { content: string }) =>
+      path === '/api/v1/media/4/comments'
+        ? {
+            id: 40,
+            content: body?.content,
+            created_at: new Date().toISOString(),
+            user: { id: 2, name: 'John Fan', profile_photo_url: null },
+          }
+        : {},
+    );
+    await render(<Watch />);
+
+    await fireEvent.changeText(await screen.findByPlaceholderText('Add a comment…'), 'Lovely work');
+    await fireEvent.press(screen.getByRole('button', { name: 'Post comment' }));
+
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/media/4/comments', { content: 'Lovely work' });
+    expect(await screen.findByText('Lovely work')).toBeTruthy();
+  });
+
+  test('replying sends the comment it answers', async () => {
+    serve();
+    mockPost.mockImplementation(async (path: string, body?: { content: string }) =>
+      path === '/api/v1/media/4/comments'
+        ? { id: 41, content: body?.content, created_at: new Date().toISOString(), user: { id: 2, name: 'John Fan' } }
+        : {},
+    );
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Reply to Mary Viewer' }));
+    await fireEvent.changeText(screen.getByPlaceholderText('Reply to Mary Viewer…'), 'Agreed');
+    await fireEvent.press(screen.getByRole('button', { name: 'Post comment' }));
+
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/media/4/comments', { content: 'Agreed', parent_id: 30 });
+    expect(await screen.findByText('Agreed')).toBeTruthy();
+  });
+
+  test('a comment the creator’s filter blocks shows why', async () => {
+    serve();
+    mockPost.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/media/4/comments') {
+        throw new ApiError(403, 'Your comment was blocked by this creator’s filters.');
+      }
+      return {};
+    });
+    await render(<Watch />);
+
+    await fireEvent.changeText(await screen.findByPlaceholderText('Add a comment…'), 'nope');
+    await fireEvent.press(screen.getByRole('button', { name: 'Post comment' }));
+
+    expect(await screen.findByText('Your comment was blocked by this creator’s filters.')).toBeTruthy();
+  });
+
+  test('liking a comment fills its heart', async () => {
+    serve();
+    mockPost.mockImplementation(async (path: string) =>
+      path === '/api/v1/comments/30/toggle-like' ? { action: 'liked', likes_count: 3 } : {},
+    );
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Like comment by Mary Viewer, 2 likes' }));
+
+    expect(await screen.findByRole('button', { name: 'Unlike comment by Mary Viewer, 3 likes' })).toBeTruthy();
+  });
+
+  test('no comments yet invites the first one', async () => {
+    serve(video(), []);
+    await render(<Watch />);
+
+    expect(await screen.findByText('No comments yet. Be the first to say something.')).toBeTruthy();
+  });
+
+  test('up next lists more videos, with the lock and price on premium ones', async () => {
+    serve();
+    await render(<Watch />);
+
+    expect(await screen.findByText('Up next')).toBeTruthy();
+    expect(screen.getByText('Colour grading')).toBeTruthy();
+    expect(screen.getByText('Sarah Creator · 4 views · Nov 1, 2026')).toBeTruthy();
+    expect(screen.getByText('25 credits')).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Colour grading' }));
+
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/watch/[id]', params: { id: 'v7' } });
   });
 });

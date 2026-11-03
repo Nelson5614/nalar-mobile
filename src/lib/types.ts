@@ -17,7 +17,13 @@ export type Me = {
   [key: string]: unknown;
 };
 
-export type Creator = { id: number; public_id?: string | null; name: string; profile_photo_url?: string | null };
+export type Creator = {
+  id: number;
+  public_id?: string | null;
+  name: string;
+  profile_photo_url?: string | null;
+  subscribers_count?: number;
+};
 
 export type CreatorProfileData = {
   id: number;
@@ -82,6 +88,34 @@ export type MediaDetail = {
   required_credits: number | null;
   // Set when the video has no price of its own and is bought with its bundle.
   series_paywall?: { id: number; title: string; bundle_price_credits: number } | null;
+  views?: number;
+  created_at?: string | null;
+  likes_count?: number;
+  is_liked?: boolean;
+};
+
+export type VideoComment = {
+  id: number;
+  content: string;
+  created_at: string | null;
+  user: ChatUser | null;
+  likes_count?: number;
+  liked_by_me?: boolean;
+  replies_count?: number;
+  replies?: VideoComment[];
+};
+
+export type RelatedVideo = {
+  id: number;
+  public_id?: string | null;
+  title: string;
+  views?: number;
+  created_at?: string | null;
+  thumbnail_url?: string | null;
+  requires_payment?: boolean;
+  is_unlocked?: boolean;
+  required_credits?: number | null;
+  creator?: { id: number; name: string; profile_photo_url?: string | null } | null;
 };
 
 export type SeriesEpisode = {
