@@ -42,9 +42,18 @@ export type CreatorProfileData = {
     thumbnail_token: string | null;
     requires_payment: boolean;
     is_unlocked: boolean;
+    required_credits?: number | null;
     views: number;
+    created_at?: string | null;
   }[];
-  series: { id: number; title: string; is_premium: boolean; media_count: number }[];
+  series: {
+    id: number;
+    title: string;
+    is_premium: boolean;
+    bundle_price_credits?: number | null;
+    media_count: number;
+    thumbnail_url?: string | null;
+  }[];
 };
 
 // Only `media` items open in the app so far; the feed also sends series, polls
@@ -71,6 +80,33 @@ export type MediaDetail = {
   playback_pending: boolean;
   mux_playback_id: string | null;
   required_credits: number | null;
+  // Set when the video has no price of its own and is bought with its bundle.
+  series_paywall?: { id: number; title: string; bundle_price_credits: number } | null;
+};
+
+export type SeriesEpisode = {
+  id: number;
+  public_id?: string | null;
+  title: string;
+  thumbnail_url?: string | null;
+  views?: number;
+  requires_payment: boolean;
+  current_user_can_play: boolean;
+  playback_pending: boolean;
+};
+
+export type SeriesDetail = {
+  id: number;
+  title: string;
+  description: string | null;
+  cover_url: string | null;
+  is_premium: boolean;
+  bundle_price_credits: number | null;
+  is_unlocked: boolean;
+  can_be_unlocked: boolean;
+  viewer_is_creator: boolean;
+  creator: Creator | null;
+  media: SeriesEpisode[];
 };
 
 export type Spark = {

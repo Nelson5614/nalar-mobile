@@ -55,26 +55,72 @@ beforeEach(() => {
 });
 
 describe('consultation menu', () => {
-  test('lists the creator’s services and opens one to book', async () => {
+  const service = (extra: object = {}) => ({
+    id: 3,
+    title: 'Portfolio review',
+    description: 'Notes you can act on.',
+    mode: 'online',
+    price_credits: 40,
+    duration_minutes: 30,
+    ...extra,
+  });
+
+  const menu = (extra: object = {}) => ({
+    data: {
+      creator: { id: 6, public_id: 'c6', name: 'Sarah Creator', profile_photo_url: null },
+      services: [service()],
+      venue_area: null,
+      ...extra,
+    },
+  });
+
+  beforeEach(() => {
     mockParams = { creator: 'c6' };
-    mockGet.mockResolvedValue({
-      data: {
-        creator: { id: 6, public_id: 'c6', name: 'Sarah Creator' },
-        services: [{ id: 3, title: 'Portfolio review', description: null, mode: 'online', price_credits: 40, duration_minutes: 30 }],
-        venue_area: null,
-      },
-    });
+  });
+
+  test('a card per session with its mode, price and length, as the web shows them', async () => {
+    mockGet.mockResolvedValue(menu());
 
     await render(<Menu />);
 
-    expect(await screen.findByText('Portfolio review')).toBeTruthy();
-    expect(screen.getByText('30 minutes · 40 credits · Online')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: 'Portfolio review' }));
+    expect(await screen.findByText('Book a session with Sarah Creator')).toBeTruthy();
+    expect(screen.getByText('Portfolio review')).toBeTruthy();
+    expect(screen.getByText('Online video call')).toBeTruthy();
+    expect(screen.getByText('Notes you can act on.')).toBeTruthy();
+    expect(screen.getByText('40 credits')).toBeTruthy();
+    expect(screen.getByText('30 min')).toBeTruthy();
+    expect(mockGet).toHaveBeenCalledWith('/api/v1/creators/c6/consultations');
+  });
+
+  test('Book a time opens the booking screen for that session', async () => {
+    mockGet.mockResolvedValue(menu());
+    await render(<Menu />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Book a time for Portfolio review' }));
+
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/consultations/book',
       params: { offering: '3', title: 'Portfolio review', price: '40', creator: 'Sarah Creator' },
     });
-    expect(mockGet).toHaveBeenCalledWith('/api/v1/creators/c6/consultations');
+  });
+
+  test('an in-person session names the area and a long one reads in hours', async () => {
+    mockGet.mockResolvedValue(
+      menu({ services: [service({ mode: 'in_person', duration_minutes: 90 })], venue_area: 'Maseru' }),
+    );
+
+    await render(<Menu />);
+
+    expect(await screen.findByText('In person, Maseru')).toBeTruthy();
+    expect(screen.getByText('1 hr 30 min')).toBeTruthy();
+  });
+
+  test('no open sessions says so', async () => {
+    mockGet.mockResolvedValue(menu({ services: [] }));
+
+    await render(<Menu />);
+
+    expect(await screen.findByText('Sarah Creator isn’t taking bookings right now.')).toBeTruthy();
   });
 });
 

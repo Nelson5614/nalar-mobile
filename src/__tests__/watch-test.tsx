@@ -32,19 +32,36 @@ jest.mock('expo-web-browser', () => ({
 }));
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
+let mockParams: Record<string, string> = { id: '4' };
 
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ id: '4' }),
+  useLocalSearchParams: () => mockParams,
   Stack: { Screen: () => null },
-  router: { push: (...args: unknown[]) => mockPush(...args) },
+  router: {
+    push: (...args: unknown[]) => mockPush(...args),
+    replace: (...args: unknown[]) => mockReplace(...args),
+  },
 }));
 
 jest.mock('@/components/protected-video', () => {
-  const { Text } = jest.requireActual('react-native');
+  const { Pressable, Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: ({ url, protect, watermark }: { url: string; protect: boolean; watermark?: string }) => (
-      <Text>{`playing ${url} protect=${protect} mark=${watermark ?? ''}`}</Text>
+    default: ({
+      url,
+      protect,
+      watermark,
+      onEnd,
+    }: {
+      url: string;
+      protect: boolean;
+      watermark?: string;
+      onEnd?: () => void;
+    }) => (
+      <Pressable accessibilityRole="button" accessibilityLabel="finish video" onPress={onEnd}>
+        <Text>{`playing ${url} protect=${protect} mark=${watermark ?? ''}`}</Text>
+      </Pressable>
     ),
   };
 });
@@ -83,6 +100,57 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest.restoreAllMocks();
   mockBalance = 1000;
+  mockParams = { id: '4' };
+});
+
+describe('<Watch /> inside a series', () => {
+  const playlist = {
+    data: {
+      id: 9,
+      title: 'Lighting basics',
+      creator: { id: 6, public_id: 'c6', name: 'Sarah Creator' },
+      viewer_is_creator: false,
+      media: [
+        { id: 4, title: 'Part 1', views: 2, requires_payment: false, current_user_can_play: true, playback_pending: false },
+        { id: 5, title: 'Part 2', views: 0, requires_payment: false, current_user_can_play: true, playback_pending: false },
+      ],
+    },
+  };
+
+  beforeEach(() => {
+    mockParams = { id: '4', series: '9' };
+    mockGet.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/media/4') return detail({ title: 'Part 1' });
+      if (path === '/api/v1/series/9') return playlist;
+      throw new Error(`unexpected ${path}`);
+    });
+  });
+
+  test('shows the series under the player with where this video sits in it', async () => {
+    await render(<Watch />);
+
+    expect(await screen.findByText('Sarah Creator · 1 / 2')).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Lighting basics' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play Part 2' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Now playing Part 1' })).toBeTruthy();
+  });
+
+  test('choosing another video stays in the series', async () => {
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Play Part 2' }));
+
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: '/watch/[id]', params: { id: '5', series: '9' } });
+  });
+
+  test('when a video ends, the next one in the series plays', async () => {
+    await render(<Watch />);
+    await screen.findByText('Sarah Creator · 1 / 2');
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'finish video' }));
+
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: '/watch/[id]', params: { id: '5', series: '9' } });
+  });
 });
 
 describe('<Watch />', () => {
@@ -196,6 +264,24 @@ describe('<Watch />', () => {
     await fireEvent.press(await screen.findByRole('link', { name: 'Sarah Creator' }));
 
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/creator/[id]', params: { id: 'c6' } });
+  });
+
+  test('a video locked by its bundle sends the fan to the series instead of a per-video unlock', async () => {
+    respond(
+      detail({
+        requires_payment: true,
+        required_credits: 0,
+        series_paywall: { id: 9, title: 'Advanced lighting', bundle_price_credits: 40 },
+      }),
+    );
+    await render(<Watch />);
+
+    expect(await screen.findByText('Part of Advanced lighting. Unlock the series for 40 credits.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Unlock for/ })).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'See the series' }));
+
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/series/[id]', params: { id: '9' } });
   });
 
   test('a failed load shows the safe message', async () => {

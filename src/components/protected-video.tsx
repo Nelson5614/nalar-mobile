@@ -1,12 +1,16 @@
-import { disableAppSwitcherProtectionAsync, enableAppSwitcherProtectionAsync, usePreventScreenCapture } from 'expo-screen-capture';
+import {
+  disableAppSwitcherProtectionAsync,
+  enableAppSwitcherProtectionAsync,
+  usePreventScreenCapture,
+} from 'expo-screen-capture';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { watermarkSpot } from '@/lib/watermark';
 
-type Props = { url: string; protect: boolean; watermark?: string };
+type Props = { url: string; protect: boolean; watermark?: string; onEnd?: () => void };
 
 /**
  * The app's version of the web ProtectedPlayer (FEATURE_PLAN.md §10). Paid
@@ -15,9 +19,21 @@ type Props = { url: string; protect: boolean; watermark?: string };
  * watermark cannot be lost in native fullscreen. This deters recording; it
  * does not prevent it (PIRACY-06).
  */
-export default function ProtectedVideo({ url, protect, watermark }: Props) {
+export default function ProtectedVideo({ url, protect, watermark, onEnd }: Props) {
   const player = useVideoPlayer(url, (p) => p.play());
   const [inFront, setInFront] = useState(AppState.currentState === 'active');
+  const onEndRef = useRef(onEnd);
+
+  useEffect(() => {
+    onEndRef.current = onEnd;
+  }, [onEnd]);
+
+  // A series plays on to its next video, as a playlist does.
+  useEffect(() => {
+    const subscription = player.addListener('playToEnd', () => onEndRef.current?.());
+
+    return () => subscription.remove();
+  }, [player]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {

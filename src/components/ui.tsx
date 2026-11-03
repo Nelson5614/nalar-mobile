@@ -36,16 +36,25 @@ type ButtonProps = {
   variant?: 'primary' | 'secondary';
   busy?: boolean;
   disabled?: boolean;
+  // When several buttons share a label, this says which one is meant.
+  accessibilityLabel?: string;
 };
 
-export function Button({ label, onPress, variant = 'primary', busy = false, disabled = false }: ButtonProps) {
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  busy = false,
+  disabled = false,
+  accessibilityLabel,
+}: ButtonProps) {
   const theme = useTheme();
   const primary = variant === 'primary';
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       onPress={onPress}
