@@ -32,14 +32,16 @@ export function createApi({ baseUrl, getToken, onUnauthorized, fetchImpl = fetch
     const token = await getToken();
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    // A FormData body sets its own multipart boundary header.
+    const isForm = body instanceof FormData;
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
     let response: Response;
     try {
       response = await fetchImpl(`${baseUrl}${path}`, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
       });
     } catch {
       throw new ApiError(0, OFFLINE_MESSAGE);
@@ -68,6 +70,7 @@ export function createApi({ baseUrl, getToken, onUnauthorized, fetchImpl = fetch
   return {
     get: <T = any>(path: string) => request<T>('GET', path),
     post: <T = any>(path: string, body?: unknown) => request<T>('POST', path, body),
+    put: <T = any>(path: string, body?: unknown) => request<T>('PUT', path, body),
     delete: <T = any>(path: string) => request<T>('DELETE', path),
   };
 }

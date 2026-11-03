@@ -99,6 +99,12 @@ export type ChatMessage = {
   is_mine: boolean;
   created_at: string | null;
   attachment_type: string | null;
+  attachment_name?: string | null;
+  attachment_duration?: number | null;
+  // Signed and short-lived; GET /api/v1/messages/{id}/link issues a new one.
+  attachment_url?: string | null;
+  edited?: boolean;
+  reactions?: { emoji: string; count: number; mine: boolean }[];
   reply_to: { id: number; body: string; user_name: string | null } | null;
   user: ChatUser | null;
 };

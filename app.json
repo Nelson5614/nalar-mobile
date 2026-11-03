@@ -34,7 +34,20 @@
         }
       ],
       "expo-secure-store",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Nalar uses the microphone to record voice messages."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Nalar opens your photos so you can send one in a message.",
+          "cameraPermission": "Nalar uses the camera so you can take a photo and send it in a message."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
