@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import Conversation, { mergeLatest } from '@/app/conversation/[id]';
+import { searchEmojis } from '@/components/chat';
 import { ApiError } from '@/lib/api';
 
 const mockGet = jest.fn();
@@ -106,6 +107,20 @@ describe('<Conversation />', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/v1/conversations/7');
   });
 
+  test("the other person's photo sits beside the last of their messages in a row", async () => {
+    const sarah = { id: 2, name: 'Sarah Creator', profile_photo_url: 'https://nalar.test/s.png' };
+    await openThread([
+      message(1, 'Hi', false, { user: sarah }),
+      message(2, 'Are you there?', false, { user: sarah }),
+      message(3, 'Yes', true),
+      message(4, 'Great', false, { user: sarah }),
+    ]);
+    await screen.findByText('Great');
+
+    expect(screen.getAllByTestId('avatar-photo-Sarah Creator')).toHaveLength(2);
+    expect(screen.queryByTestId('avatar-photo-John Fan')).toBeNull();
+  });
+
   test('sending posts the text, shows the message and clears the box', async () => {
     await openThread([message(1, 'Hello')]);
     mockPost.mockResolvedValue({ data: message(9, 'See you at 6', true) });
@@ -146,12 +161,13 @@ describe('<Conversation />', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
   });
 
-  test('the emoji tray adds an emoji to the message', async () => {
+  test('the emoji picker adds an emoji to the message', async () => {
     await openThread([]);
     await fireEvent.changeText(await screen.findByLabelText('Message'), 'Great job ');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Emoji' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Add 🔥' }));
+    await fireEvent.changeText(screen.getByLabelText('Search emoji'), 'fire');
+    await fireEvent.press(screen.getByRole('button', { name: 'fire' }));
 
     expect(screen.getByLabelText('Message').props.value).toBe('Great job 🔥');
   });
@@ -300,5 +316,13 @@ describe('mergeLatest', () => {
     const latest = [message(2, 'two, edited'), message(3, 'three')] as never[];
 
     expect(mergeLatest(current, latest).map((m) => m.body)).toEqual(['old', 'two, edited', 'three']);
+  });
+});
+
+describe('searchEmojis', () => {
+  test('searches the full emoji set by name and keyword', () => {
+    expect(searchEmojis('heart').length).toBeGreaterThan(20);
+    expect(searchEmojis('pizza').map((e) => e.emoji)).toContain('🍕');
+    expect(searchEmojis('   ')).toEqual([]);
   });
 });

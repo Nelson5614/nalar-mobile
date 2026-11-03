@@ -22,9 +22,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ActionSheet, Attachment, EmojiTray, formatDuration } from '@/components/chat';
+import { ActionSheet, Attachment, EmojiSheet, formatDuration } from '@/components/chat';
 import { ThemedText } from '@/components/themed-text';
-import { ErrorText } from '@/components/ui';
+import { Avatar, ErrorText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
@@ -42,6 +42,7 @@ const TYPING_SHOWN_MS = 4000;
 const TYPING_SENT_EVERY_MS = 3000;
 const MENU_CLOSE_MS = 400;
 const DANGER = '#DC2626';
+const AVATAR_SIZE = 28;
 // The server's cap on a voice note (StoreVoiceMessageRequest).
 const MAX_VOICE_SECONDS = 300;
 // The same list the server accepts (MessageReaction::EMOJIS).
@@ -66,6 +67,7 @@ export default function ConversationScreen() {
   const realtime = launch?.route === 'home' ? (launch.config.realtime as RealtimeConfig | undefined) : undefined;
 
   const [title, setTitle] = useState('');
+  const [otherPhoto, setOtherPhoto] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
@@ -104,6 +106,7 @@ export default function ConversationScreen() {
       .then((first) => {
         if (cancelled) return;
         setTitle(first.data.other_user?.name ?? '');
+        setOtherPhoto(first.data.other_user?.profile_photo_url ?? null);
         setMessages(first.messages);
         setPage(first.meta.current_page);
         setLastPage(first.meta.last_page);
@@ -335,10 +338,25 @@ export default function ConversationScreen() {
     : [];
 
   const canSend = !!text.trim() && !sending;
+  const newestFirst = [...messages].reverse();
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Stack.Screen options={{ headerShown: true, title, headerBackTitle: 'Inbox' }} />
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title,
+          headerBackTitle: 'Inbox',
+          headerTitle: () => (
+            <View style={styles.headerTitle}>
+              <Avatar uri={otherPhoto} name={title || 'Nalar member'} size={32} />
+              <ThemedText type="smallBold" numberOfLines={1}>
+                {title}
+              </ThemedText>
+            </View>
+          ),
+        }}
+      />
       <KeyboardAvoidingView
         style={styles.fill}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -353,11 +371,12 @@ export default function ConversationScreen() {
           <FlatList
             testID="thread"
             inverted
-            data={[...messages].reverse()}
+            data={newestFirst}
             keyExtractor={(m) => String(m.id)}
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <Bubble
                 message={item}
+                showAvatar={!item.is_mine && (index === 0 || newestFirst[index - 1].is_mine)}
                 onLongPress={() => setMenuFor(item)}
                 onReact={(emoji) => react(item, emoji)}
                 onError={setSendError}
@@ -437,13 +456,13 @@ export default function ConversationScreen() {
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={emojiOpen ? 'Hide emoji' : 'Emoji'}
+                accessibilityLabel="Emoji"
                 onPress={() => {
                   Keyboard.dismiss();
-                  setEmojiOpen((open) => !open);
+                  setEmojiOpen(true);
                 }}
                 style={styles.iconButton}>
-                <SymbolView name={emojiOpen ? 'keyboard' : 'face.smiling'} tintColor={theme.textSecondary} size={24} />
+                <SymbolView name="face.smiling" tintColor={theme.textSecondary} size={24} />
               </Pressable>
               <TextInput
                 accessibilityLabel="Message"
@@ -451,7 +470,6 @@ export default function ConversationScreen() {
                 placeholderTextColor={theme.textSecondary}
                 value={text}
                 onChangeText={onChangeText}
-                onFocus={() => setEmojiOpen(false)}
                 multiline
                 maxLength={5000}
                 style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
@@ -492,9 +510,14 @@ export default function ConversationScreen() {
               )}
             </View>
           )}
-          {emojiOpen ? <EmojiTray onPick={(emoji) => setText((current) => current + emoji)} /> : null}
         </View>
       </KeyboardAvoidingView>
+
+      <EmojiSheet
+        open={emojiOpen}
+        onClose={() => setEmojiOpen(false)}
+        onPick={(emoji) => setText((current) => current + emoji)}
+      />
 
       <ActionSheet
         visible={menuFor !== null}
@@ -519,11 +542,13 @@ export default function ConversationScreen() {
 
 function Bubble({
   message,
+  showAvatar,
   onLongPress,
   onReact,
   onError,
 }: {
   message: ChatMessage;
+  showAvatar: boolean;
   onLongPress: () => void;
   onReact: (emoji: string) => void;
   onError: (text: string) => void;
@@ -537,55 +562,83 @@ function Bubble({
   const photo = message.attachment_type === 'image';
   const onColour = mine && !photo;
 
-  return (
-    <View style={mine ? styles.mine : styles.theirs}>
-      <Pressable
-        accessibilityHint="Long press for reply, reactions and more"
-        onLongPress={onLongPress}
-        delayLongPress={300}
-        style={[
-          styles.bubble,
-          photo ? styles.photoBubble : { backgroundColor: mine ? theme.primary : theme.backgroundElement },
-        ]}>
-        {message.reply_to ? (
-          <ThemedText
-            type="small"
-            numberOfLines={2}
-            style={[styles.quote, onColour && styles.lightMuted]}
-            themeColor={onColour ? undefined : 'textSecondary'}>
-            {`${message.reply_to.user_name ?? 'Reply'}: ${message.reply_to.body || 'Attachment'}`}
-          </ThemedText>
-        ) : null}
-        {message.attachment_type ? (
-          <Attachment message={message} onError={onError} onLongPress={onLongPress} />
-        ) : (
-          <ThemedText style={mine ? styles.light : undefined}>
-            {messageText(message.body, message.attachment_type)}
-          </ThemedText>
-        )}
-        {message.edited ? (
-          <ThemedText
-            type="small"
-            style={onColour ? styles.lightMuted : undefined}
-            themeColor={onColour ? undefined : 'textSecondary'}>
-            edited
-          </ThemedText>
-        ) : null}
-      </Pressable>
-      {reactions.length ? (
-        <View style={[styles.reactionRow, mine && styles.reactionRowMine]}>
-          {reactions.map((r) => (
-            <Pressable
-              key={r.emoji}
-              accessibilityRole="button"
-              accessibilityLabel={`${r.emoji} ${r.count}${r.mine ? ', yours. Tap to remove' : ''}`}
-              onPress={() => onReact(r.emoji)}
-              style={[styles.reactionChip, { backgroundColor: theme.backgroundElement }]}>
-              <ThemedText type="small">{r.count > 1 ? `${r.emoji} ${r.count}` : r.emoji}</ThemedText>
-            </Pressable>
-          ))}
-        </View>
+  const bubble = (
+    <Pressable
+      accessibilityHint="Long press for reply, reactions and more"
+      onLongPress={onLongPress}
+      delayLongPress={300}
+      style={[
+        styles.bubble,
+        photo ? styles.photoBubble : { backgroundColor: mine ? theme.primary : theme.backgroundElement },
+      ]}>
+      {message.reply_to ? (
+        <ThemedText
+          type="small"
+          numberOfLines={2}
+          style={[styles.quote, onColour && styles.lightMuted]}
+          themeColor={onColour ? undefined : 'textSecondary'}>
+          {`${message.reply_to.user_name ?? 'Reply'}: ${message.reply_to.body || 'Attachment'}`}
+        </ThemedText>
       ) : null}
+      {message.attachment_type ? (
+        <Attachment message={message} onError={onError} onLongPress={onLongPress} />
+      ) : (
+        <ThemedText style={mine ? styles.light : undefined}>
+          {messageText(message.body, message.attachment_type)}
+        </ThemedText>
+      )}
+      {message.edited ? (
+        <ThemedText
+          type="small"
+          style={onColour ? styles.lightMuted : undefined}
+          themeColor={onColour ? undefined : 'textSecondary'}>
+          edited
+        </ThemedText>
+      ) : null}
+    </Pressable>
+  );
+
+  const reactionRow = reactions.length ? (
+    <View style={[styles.reactionRow, mine ? styles.reactionRowMine : styles.reactionRowTheirs]}>
+      {reactions.map((r) => (
+        <Pressable
+          key={r.emoji}
+          accessibilityRole="button"
+          accessibilityLabel={`${r.emoji} ${r.count}${r.mine ? ', yours. Tap to remove' : ''}`}
+          onPress={() => onReact(r.emoji)}
+          style={[styles.reactionChip, { backgroundColor: theme.backgroundElement }]}>
+          <ThemedText type="small">{r.count > 1 ? `${r.emoji} ${r.count}` : r.emoji}</ThemedText>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
+  if (mine) {
+    return (
+      <View style={styles.mine}>
+        {bubble}
+        {reactionRow}
+      </View>
+    );
+  }
+
+  // Like other messaging apps, the other person's photo sits beside the last
+  // message of each run of theirs; earlier ones keep the space so they line up.
+  return (
+    <View style={styles.theirs}>
+      <View style={styles.theirsRow}>
+        {showAvatar ? (
+          <Avatar
+            uri={message.user?.profile_photo_url}
+            name={message.user?.name ?? 'Nalar member'}
+            size={AVATAR_SIZE}
+          />
+        ) : (
+          <View style={styles.avatarSpace} />
+        )}
+        <View style={styles.shrink}>{bubble}</View>
+      </View>
+      {reactionRow}
     </View>
   );
 }
@@ -598,12 +651,17 @@ const styles = StyleSheet.create({
   bubble: { borderRadius: 16, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, gap: Spacing.half },
   photoBubble: { padding: 0 },
   mine: { alignSelf: 'flex-end', maxWidth: '80%', alignItems: 'flex-end' },
-  theirs: { alignSelf: 'flex-start', maxWidth: '80%', alignItems: 'flex-start' },
+  theirs: { alignSelf: 'flex-start', maxWidth: '85%', alignItems: 'flex-start' },
+  theirsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.two },
+  avatarSpace: { width: AVATAR_SIZE },
+  headerTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, maxWidth: 240 },
   quote: { borderLeftWidth: 2, borderLeftColor: 'rgba(127,127,127,0.5)', paddingLeft: Spacing.two },
   light: { color: '#fff' },
   lightMuted: { color: 'rgba(255,255,255,0.8)' },
   reactionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, marginTop: -Spacing.one },
   reactionRowMine: { justifyContent: 'flex-end' },
+  // Under the bubble, past the photo column.
+  reactionRowTheirs: { marginLeft: AVATAR_SIZE + Spacing.two },
   reactionChip: {
     borderRadius: 12,
     paddingHorizontal: Spacing.two,

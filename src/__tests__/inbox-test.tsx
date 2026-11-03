@@ -54,6 +54,26 @@ describe('<Inbox />', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/v1/conversations');
   });
 
+  test("each thread shows the other person's photo, or a placeholder without one", async () => {
+    mockGet.mockResolvedValue({
+      data: [
+        {
+          ...thread(1, 'Sarah Creator', null),
+          other_user: { id: 2, name: 'Sarah Creator', profile_photo_url: 'https://nalar.test/s.png' },
+        },
+        thread(2, 'Una', null),
+      ],
+    });
+
+    await render(<Inbox />);
+    await screen.findByText('Sarah Creator');
+
+    expect(screen.getByTestId('avatar-photo-Sarah Creator').props.source).toEqual([
+      expect.objectContaining({ uri: 'https://nalar.test/s.png' }),
+    ]);
+    expect(screen.getByTestId('avatar-placeholder-Una')).toBeTruthy();
+  });
+
   test('opening a thread goes to the conversation', async () => {
     mockGet.mockResolvedValue({ data: [thread(7, 'Sarah Creator', null)], meta: { current_page: 1, last_page: 1 } });
     await render(<Inbox />);
@@ -87,6 +107,8 @@ describe('<Inbox />', () => {
 
     await render(<Inbox />);
 
-    expect(await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.')).toBeTruthy();
+    expect(
+      await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.'),
+    ).toBeTruthy();
   });
 });

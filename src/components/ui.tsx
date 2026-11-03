@@ -1,5 +1,15 @@
+import { Image } from 'expo-image';
+import { SymbolView } from 'expo-symbols';
 import type { PropsWithChildren } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  type TextInputProps,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -66,7 +76,11 @@ export function Field({ label, error, ...input }: TextInputProps & { label: stri
         placeholderTextColor={theme.textSecondary}
         style={[
           styles.input,
-          { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: error ? theme.danger : 'transparent' },
+          {
+            color: theme.text,
+            backgroundColor: theme.backgroundElement,
+            borderColor: error ? theme.danger : 'transparent',
+          },
         ]}
         {...input}
       />
@@ -109,6 +123,26 @@ export function Checkbox({ label, checked, onChange, error }: CheckboxProps) {
   );
 }
 
+/** A person's round photo, or a grey circle with a silhouette when they have none. */
+export function Avatar({ uri, name, size = 40 }: { uri?: string | null; name: string; size?: number }) {
+  const theme = useTheme();
+  const round = { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.backgroundElement };
+
+  return uri ? (
+    <Image
+      testID={`avatar-photo-${name}`}
+      accessibilityIgnoresInvertColors
+      source={{ uri }}
+      style={round}
+      contentFit="cover"
+    />
+  ) : (
+    <View testID={`avatar-placeholder-${name}`} style={[round, styles.avatarPlaceholder]}>
+      <SymbolView name="person.fill" tintColor={theme.textSecondary} size={size * 0.5} />
+    </View>
+  );
+}
+
 export function ErrorText({ children }: PropsWithChildren) {
   return (
     <ThemedText type="small" themeColor="danger" accessibilityRole="alert">
@@ -119,6 +153,7 @@ export function ErrorText({ children }: PropsWithChildren) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   content: { flexGrow: 1, padding: Spacing.four, gap: Spacing.three },
   centered: { justifyContent: 'center' },
   button: {

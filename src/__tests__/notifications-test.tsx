@@ -40,8 +40,29 @@ beforeEach(() => {
 });
 
 describe('<NotificationsList />', () => {
+  test("each row leads with the person's photo, or a bell when there is no person", async () => {
+    mockGet.mockResolvedValue(
+      feed([
+        note('a', 'Sarah replied to your comment', { image_url: 'https://nalar.test/sarah.jpg' }),
+        note('b', 'You earned a badge'),
+      ]),
+    );
+
+    await render(<NotificationsList />);
+    await screen.findByText('Sarah replied to your comment');
+
+    // expo-image hands its native view a list of sources.
+    expect(screen.getByTestId('notification-photo-a').props.source).toEqual([
+      expect.objectContaining({ uri: 'https://nalar.test/sarah.jpg' }),
+    ]);
+    expect(screen.queryByTestId('notification-photo-b')).toBeNull();
+    expect(screen.getByTestId('notification-icon-b')).toBeTruthy();
+  });
+
   test('lists notifications and marks the unread ones', async () => {
-    mockGet.mockResolvedValue(feed([note('a', 'Sarah replied to your comment'), note('b', 'You earned a badge', { read: true })], 1));
+    mockGet.mockResolvedValue(
+      feed([note('a', 'Sarah replied to your comment'), note('b', 'You earned a badge', { read: true })], 1),
+    );
 
     await render(<NotificationsList />);
 
@@ -98,6 +119,8 @@ describe('<NotificationsList />', () => {
 
     await render(<NotificationsList />);
 
-    expect(await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.')).toBeTruthy();
+    expect(
+      await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.'),
+    ).toBeTruthy();
   });
 });

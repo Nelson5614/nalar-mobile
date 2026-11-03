@@ -1,4 +1,6 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
@@ -103,10 +105,25 @@ function NotificationRow({ notification, onPress }: { notification: AppNotificat
       accessibilityLabel={notification.read ? notification.message : `Unread: ${notification.message}`}
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
-      <View style={[styles.dot, { backgroundColor: notification.read ? 'transparent' : theme.primary }]} />
+      {notification.image_url ? (
+        <Image
+          testID={`notification-photo-${notification.id}`}
+          source={{ uri: notification.image_url }}
+          style={[styles.avatar, { backgroundColor: theme.backgroundElement }]}
+          contentFit="cover"
+        />
+      ) : (
+        // Badges, payouts and other system notices have no person behind them.
+        <View
+          testID={`notification-icon-${notification.id}`}
+          style={[styles.avatar, styles.iconAvatar, { backgroundColor: theme.backgroundElement }]}>
+          <SymbolView name="bell.fill" tintColor={theme.textSecondary} size={22} />
+        </View>
+      )}
       <ThemedText type={notification.read ? 'small' : 'smallBold'} style={styles.message}>
         {notification.message}
       </ThemedText>
+      <View style={[styles.dot, { backgroundColor: notification.read ? 'transparent' : theme.primary }]} />
     </Pressable>
   );
 }
@@ -114,7 +131,9 @@ function NotificationRow({ notification, onPress }: { notification: AppNotificat
 const styles = StyleSheet.create({
   content: { padding: Spacing.three, gap: Spacing.three },
   markAll: { alignSelf: 'flex-end' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 44 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, minHeight: 56 },
+  avatar: { width: 48, height: 48, borderRadius: 24 },
+  iconAvatar: { alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5 },
   message: { flex: 1 },
 });

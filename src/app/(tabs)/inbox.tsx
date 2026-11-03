@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import NotificationsList from '@/components/notifications-list';
 import { ThemedText } from '@/components/themed-text';
-import { ErrorText } from '@/components/ui';
+import { Avatar, ErrorText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
@@ -129,6 +129,7 @@ function ThreadRow({ thread }: { thread: ConversationSummary }) {
         })
       }
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
+      <Avatar uri={thread.other_user?.profile_photo_url} name={name} size={52} />
       <View style={styles.rowText}>
         <ThemedText type="smallBold">{name}</ThemedText>
         {preview ? (
