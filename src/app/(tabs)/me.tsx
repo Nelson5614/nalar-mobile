@@ -33,6 +33,7 @@ export default function Me() {
       {config.top_up?.link_enabled?.[PLATFORM] ? (
         <Button label="Buy credits" onPress={() => WebBrowser.openBrowserAsync(config.top_up.url)} />
       ) : null}
+      <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
       <Button label="My consultations" variant="secondary" onPress={() => router.push('/consultations/mine')} />
       <Button
         label="Sign out"

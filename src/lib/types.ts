@@ -156,3 +156,23 @@ export type IssuedToken = {
 };
 
 export type LoginResponse = IssuedToken | { two_factor: true; challenge_id: string };
+
+export type LibraryAsset = {
+  id: string;
+  kind: 'pdf' | 'audio' | string;
+  filename: string | null;
+  size_bytes: number | null;
+  // An in-app reader exists for PDFs only; audio is download-only, as on the web.
+  readable: boolean;
+  downloadable: boolean;
+};
+
+export type LibraryOrder = {
+  id: string;
+  status: string;
+  credits_spent: number;
+  created_at: string | null;
+  seller: { id: number; name: string } | null;
+  product: { id: string; title: string; type: string; cover_image_url: string | null } | null;
+  assets: LibraryAsset[];
+};
