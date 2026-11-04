@@ -11,6 +11,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { api } from '@/lib/session';
+import { compactCount, timeAgo } from '@/lib/time';
 import type { FeedItem, FeedPage } from '@/lib/types';
 
 const ALL = 'All';
@@ -174,6 +175,15 @@ export default function Home() {
 function FeedCard({ item }: { item: FeedItem }) {
   const theme = useTheme();
   const title = item.title ?? 'Untitled video';
+  const views = item.views ?? 0;
+  // As YouTube lists a video: who made it, how many watched, how long ago.
+  const meta = [
+    item.creator?.name,
+    `${compactCount(views)} ${views === 1 ? 'view' : 'views'}`,
+    timeAgo(item.created_at),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Pressable
@@ -193,12 +203,12 @@ function FeedCard({ item }: { item: FeedItem }) {
           </View>
         ) : null}
       </View>
-      <ThemedText type="smallBold">{title}</ThemedText>
-      {item.creator?.name ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          {item.creator.name}
-        </ThemedText>
-      ) : null}
+      <ThemedText type="smallBold" numberOfLines={2}>
+        {title}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+        {meta}
+      </ThemedText>
     </Pressable>
   );
 }

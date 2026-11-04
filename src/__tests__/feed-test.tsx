@@ -42,6 +42,24 @@ describe('<Home /> feed', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/v1/feed?page=1');
   });
 
+  test('each video shows its title, creator, views and how long ago it was posted', async () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+    mockGet.mockResolvedValue(
+      page([
+        video(1, { views: 1530, created_at: twoDaysAgo }),
+        video(2, { views: 1, created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() }),
+        video(3, { views: 0, created_at: null }),
+      ]),
+    );
+
+    await render(<Home />);
+
+    expect(await screen.findByText('Video 1')).toBeTruthy();
+    expect(screen.getByText('Sarah Creator · 1.5K views · 2 days ago')).toBeTruthy();
+    expect(screen.getByText('Sarah Creator · 1 view · 3 hours ago')).toBeTruthy();
+    expect(screen.getByText('Sarah Creator · 0 views')).toBeTruthy();
+  });
+
   test('opening a video goes to its watch screen', async () => {
     mockGet.mockResolvedValue(page([video(1)]));
     await render(<Home />);

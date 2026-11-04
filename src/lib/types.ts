@@ -71,6 +71,8 @@ export type FeedItem = {
   creator?: Creator | null;
   requires_payment?: boolean;
   thumbnail_url?: string | null;
+  views?: number;
+  created_at?: string | null;
 };
 
 export type FeedPage = { data: FeedItem[]; current_page: number; last_page: number };
@@ -269,7 +271,11 @@ export type CircleSummary = {
   creator?: Creator | null;
 };
 
-export type CircleMembershipInfo = { id: number; status: 'active' | 'paused' | 'cancelled' | string; renews_at: string | null };
+export type CircleMembershipInfo = {
+  id: number;
+  status: 'active' | 'paused' | 'cancelled' | string;
+  renews_at: string | null;
+};
 
 export type MyCircle = CircleMembershipInfo & { circle: CircleSummary };
 
