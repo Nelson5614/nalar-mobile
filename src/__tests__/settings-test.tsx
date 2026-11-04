@@ -4,6 +4,7 @@ import { Alert, Linking, Share } from 'react-native';
 import Me from '@/app/(tabs)/me';
 import Devices from '@/app/settings/devices';
 import Settings from '@/app/settings/index';
+import DeleteAccount from '@/app/settings/delete';
 import ChangePassword from '@/app/settings/password';
 import TwoStep from '@/app/settings/two-factor';
 import { ApiError } from '@/lib/api';
@@ -14,6 +15,8 @@ const mockPut = jest.fn();
 const mockDelete = jest.fn();
 const mockPush = jest.fn();
 const mockBack = jest.fn();
+const mockReplace = jest.fn();
+const mockSignOut = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('@/lib/session', () => ({
   api: {
@@ -29,12 +32,16 @@ jest.mock('@/lib/session', () => ({
       config: { features: {}, top_up: { link_enabled: {} } },
     },
     reload: jest.fn(),
-    signOut: jest.fn(),
+    signOut: () => mockSignOut(),
   }),
 }));
 
 jest.mock('expo-router', () => ({
-  router: { push: (...args: unknown[]) => mockPush(...args), back: () => mockBack() },
+  router: {
+    push: (...args: unknown[]) => mockPush(...args),
+    back: () => mockBack(),
+    replace: (...args: unknown[]) => mockReplace(...args),
+  },
   Redirect: () => null,
   Stack: { Screen: () => null },
   useFocusEffect: (effect: () => void) => {
@@ -175,5 +182,64 @@ describe('account settings', () => {
 
     expect(mockDelete).toHaveBeenCalledWith('/api/v1/auth/devices/3');
     expect(screen.queryByText('iPad')).toBeNull();
+  });
+});
+
+describe('deleting the account', () => {
+  test('settings has a way in', async () => {
+    mockGet.mockResolvedValue({ data: { enabled: false, pending: false } });
+    await render(<Settings />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete account' }));
+    expect(mockPush).toHaveBeenLastCalledWith('/settings/delete');
+  });
+
+  test('says what has to settle first and offers no way to delete yet', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        can_delete: false,
+        credit_balance: 0,
+        blockers: ['You have a consultation booked. Cancel it or let it finish before you delete your account.'],
+      },
+    });
+    await render(<DeleteAccount />);
+
+    expect(await screen.findByText(/You have a consultation booked/)).toBeTruthy();
+    expect(screen.queryByLabelText('Your password')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete my account' })).toBeNull();
+  });
+
+  test('warns about unused credits, confirms, deletes and signs out', async () => {
+    mockGet.mockResolvedValue({ data: { can_delete: true, credit_balance: 12, blockers: [] } });
+    mockDelete.mockResolvedValue(undefined);
+    const alert = jest.spyOn(Alert, 'alert');
+    await render(<DeleteAccount />);
+
+    expect(await screen.findByText(/Your 12 unused credits will be lost/)).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Your password'), 'my-Secret-123');
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete my account' }));
+    expect(mockDelete).not.toHaveBeenCalled();
+
+    await act(async () => alert.mock.calls[0][2]!.find((b) => b.text === 'Delete')!.onPress!());
+
+    expect(mockDelete).toHaveBeenCalledWith('/api/v1/account', { password: 'my-Secret-123' });
+    expect(mockSignOut).toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  test('a wrong password or a new blocker is shown and nothing is signed out', async () => {
+    mockGet.mockResolvedValue({ data: { can_delete: true, credit_balance: 0, blockers: [] } });
+    mockDelete.mockRejectedValue(
+      new ApiError(422, 'That password is not right.', { password: 'That password is not right.' }),
+    );
+    const alert = jest.spyOn(Alert, 'alert');
+    await render(<DeleteAccount />);
+
+    await fireEvent.changeText(await screen.findByLabelText('Your password'), 'nope');
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete my account' }));
+    await act(async () => alert.mock.calls[0][2]!.find((b) => b.text === 'Delete')!.onPress!());
+
+    expect(screen.getByText('That password is not right.')).toBeTruthy();
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 });

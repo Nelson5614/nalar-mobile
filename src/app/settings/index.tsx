@@ -38,6 +38,7 @@ export default function Settings() {
         onPress={() => router.push('/settings/two-factor')}
       />
       <Row label="Signed-in devices" onPress={() => router.push('/settings/devices')} />
+      <Row label="Delete account" onPress={() => router.push('/settings/delete')} />
     </Screen>
   );
 }
