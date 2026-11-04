@@ -18,6 +18,9 @@ const failure = (e: unknown) => (e instanceof ApiError ? e.message : 'Something 
 
 type Me = { id: number; name: string; profile_photo_url?: string | null } | null;
 
+/** Who a reply answers, and the first comment of the thread it lands in. */
+type ReplyTarget = { rootId: number; name: string; mention: boolean };
+
 /**
  * Under the player, in YouTube's order: title and stats, the channel, the
  * action row, the description, then comments. Up next follows on its own.
@@ -213,12 +216,39 @@ function Chip({
 }
 
 /** YouTube's thread: newest first, one level of replies, a like and Reply under each. */
-export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
+/** Where a thread lives. Videos and Sparks share the thread, not the endpoints. */
+export type CommentPaths = { list: string; post: string; like: (commentId: number) => string };
+
+export const videoCommentPaths = (mediaId: number): CommentPaths => ({
+  list: `/api/v1/media/${mediaId}/comments`,
+  post: `/api/v1/media/${mediaId}/comments`,
+  like: (id) => `/api/v1/comments/${id}/toggle-like`,
+});
+
+export function Comments({
+  mediaId,
+  me,
+  paths,
+  onPosted,
+}: {
+  mediaId?: number;
+  me: Me;
+  paths?: CommentPaths;
+  // A new top-level comment, so a count shown elsewhere can follow.
+  onPosted?: () => void;
+}) {
+  const where = paths ?? videoCommentPaths(mediaId!);
   const theme = useTheme();
   const [comments, setComments] = useState<VideoComment[] | null>(null);
   const [total, setTotal] = useState(0);
   const [draft, setDraft] = useState('');
-  const [replyTo, setReplyTo] = useState<VideoComment | null>(null);
+  // Replies stay one level deep: answering a reply goes to its thread's first
+  // comment, with the person answered named at the start, as YouTube does.
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+  const startReply = (target: ReplyTarget) => {
+    setReplyTo(target);
+    if (target.mention) setDraft(`@${target.name} `);
+  };
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<number[]>([]);
@@ -228,7 +258,7 @@ export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
   useEffect(() => {
     let cancelled = false;
     api
-      .get<{ comments: VideoComment[]; total: number }>(`/api/v1/media/${mediaId}/comments`)
+      .get<{ comments: VideoComment[]; total: number }>(where.list)
       .then((result) => {
         if (cancelled) return;
         setComments(result.comments);
@@ -239,7 +269,7 @@ export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
     return () => {
       cancelled = true;
     };
-  }, [mediaId]);
+  }, [where.list]);
 
   async function post() {
     const content = draft.trim();
@@ -248,21 +278,24 @@ export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
     setError('');
     try {
       const created = await api.post<VideoComment>(
-        `/api/v1/media/${mediaId}/comments`,
-        replyTo ? { content, parent_id: replyTo.id } : { content },
+        where.post,
+        replyTo ? { content, parent_id: replyTo.rootId } : { content },
       );
       setComments((list) =>
         replyTo
           ? (list ?? []).map((c) =>
-              c.id === replyTo.id
+              c.id === replyTo.rootId
                 ? { ...c, replies: [...(c.replies ?? []), created], replies_count: (c.replies_count ?? 0) + 1 }
                 : c,
             )
           : [created, ...(list ?? [])],
       );
       // A new reply shows straight away, in its opened thread.
-      if (replyTo) setOpen((ids) => (ids.includes(replyTo.id) ? ids : [...ids, replyTo.id]));
-      else setTotal((t) => t + 1);
+      if (replyTo) setOpen((ids) => (ids.includes(replyTo.rootId) ? ids : [...ids, replyTo.rootId]));
+      else {
+        setTotal((t) => t + 1);
+        onPosted?.();
+      }
       setDraft('');
       setReplyTo(null);
     } catch (e) {
@@ -294,7 +327,7 @@ export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
                 onPress={() => setReplyTo(null)}
                 style={styles.replying}>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Replying to {replyTo.user?.name}
+                  Replying to {replyTo.name}
                 </ThemedText>
                 <SymbolView name="xmark" size={10} tintColor={theme.textSecondary} />
               </Pressable>
@@ -302,7 +335,7 @@ export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder={replyTo ? `Reply to ${replyTo.user?.name}…` : 'Add a comment…'}
+              placeholder={replyTo ? `Reply to ${replyTo.name}…` : 'Add a comment…'}
               placeholderTextColor={theme.textSecondary}
               maxLength={1000}
               multiline
@@ -342,9 +375,10 @@ export function Comments({ mediaId, me }: { mediaId: number; me: Me }) {
             key={comment.id}
             comment={comment}
             canAct={me !== null}
-            onReply={setReplyTo}
+            onReply={startReply}
             showReplies={open.includes(comment.id)}
             onToggleReplies={() => toggleReplies(comment.id)}
+            likePath={where.like(comment.id)}
           />
         ))
       )}
@@ -358,24 +392,25 @@ function CommentItem({
   onReply,
   showReplies,
   onToggleReplies,
+  likePath,
 }: {
   comment: VideoComment;
   canAct: boolean;
-  onReply: (comment: VideoComment) => void;
+  onReply: (target: ReplyTarget) => void;
   showReplies: boolean;
   onToggleReplies: () => void;
+  likePath: string;
 }) {
   const theme = useTheme();
-  const [liked, setLiked] = useState(Boolean(comment.liked_by_me));
+  // Video threads say `liked_by_me`, Spark threads `is_liked`.
+  const [liked, setLiked] = useState(Boolean(comment.liked_by_me || comment.is_liked));
   const [likes, setLikes] = useState(comment.likes_count ?? 0);
   const name = comment.user?.name ?? 'Someone';
   const replies = comment.replies ?? [];
 
   async function like() {
     try {
-      const result = await api.post<{ action: string; likes_count: number }>(
-        `/api/v1/comments/${comment.id}/toggle-like`,
-      );
+      const result = await api.post<{ action: string; likes_count: number }>(likePath);
       setLiked(result.action === 'liked');
       setLikes(result.likes_count);
     } catch {
@@ -413,7 +448,7 @@ function CommentItem({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Reply to ${name}`}
-              onPress={() => onReply(comment)}
+              onPress={() => onReply({ rootId: comment.id, name, mention: false })}
               hitSlop={8}>
               <ThemedText type="smallBold" themeColor="textSecondary">
                 Reply
@@ -441,6 +476,19 @@ function CommentItem({
                     {`${reply.user?.name ?? 'Someone'} · ${timeAgo(reply.created_at)}`}
                   </ThemedText>
                   <ThemedText type="small">{reply.content}</ThemedText>
+                  {canAct ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Reply to ${reply.user?.name ?? 'Someone'}`}
+                      onPress={() =>
+                        onReply({ rootId: comment.id, name: reply.user?.name ?? 'Someone', mention: true })
+                      }
+                      hitSlop={8}>
+                      <ThemedText type="smallBold" themeColor="textSecondary">
+                        Reply
+                      </ThemedText>
+                    </Pressable>
+                  ) : null}
                 </View>
               </View>
             ))

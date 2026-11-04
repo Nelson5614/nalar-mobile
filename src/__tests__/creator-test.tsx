@@ -88,6 +88,8 @@ describe('<CreatorProfile />', () => {
     expect(screen.getByText('Verified')).toBeTruthy();
     expect(screen.getByText('1 subscriber · 2 videos')).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Videos', selected: true })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Series' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Circles' })).toBeTruthy();
     expect(mockGet).toHaveBeenCalledWith('/api/v1/creators/c6');
   });
 
@@ -98,7 +100,8 @@ describe('<CreatorProfile />', () => {
 
     expect(await screen.findByRole('tab', { name: 'Free (1)', selected: true })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Premium (1)' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: 'Series (2)' })).toBeTruthy();
+    // Series is a main tab of its own, beside Videos, not a sub-tab inside it.
+    expect(screen.queryByRole('tab', { name: /^Series \(/ })).toBeNull();
     expect(screen.getByText('Studio tour')).toBeTruthy();
     expect(screen.getByText('3 views')).toBeTruthy();
     expect(screen.getByText('Nov 2, 2026')).toBeTruthy();
@@ -151,7 +154,7 @@ describe('<CreatorProfile />', () => {
     mockGet.mockResolvedValue(profile());
     await render(<CreatorProfile />);
 
-    await fireEvent.press(await screen.findByRole('tab', { name: 'Series (2)' }));
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Series' }));
 
     expect(screen.getByText('3 videos')).toBeTruthy();
     expect(screen.getByText('1 video · Premium series')).toBeTruthy();
@@ -167,8 +170,47 @@ describe('<CreatorProfile />', () => {
     await render(<CreatorProfile />);
 
     expect(await screen.findByText('This creator hasn’t posted any free videos yet.')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('tab', { name: 'Series (0)' }));
+    await fireEvent.press(screen.getByRole('tab', { name: 'Series' }));
     expect(screen.getByText('This creator hasn’t published any series yet.')).toBeTruthy();
+  });
+
+  test('the Circles tab lists the circles they run, as the web profile does', async () => {
+    mockGet.mockImplementation(async (path: string) =>
+      path === '/api/v1/circles?user_id=6'
+        ? {
+            data: [
+              {
+                id: 11,
+                title: 'Lighting club',
+                description: 'A monthly deep dive.',
+                cover_image_url: null,
+                is_free: false,
+                monthly_price_credits: 20,
+                member_count: 4,
+              },
+            ],
+          }
+        : profile(),
+    );
+    await render(<CreatorProfile />);
+
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Circles' }));
+
+    expect(await screen.findByText('Lighting club')).toBeTruthy();
+    expect(screen.getByText('4 members · 20 credits/mo')).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: /^Free/ })).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Lighting club' }));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/circle/[id]', params: { id: '11' } });
+  });
+
+  test('a creator with no circles says so', async () => {
+    mockGet.mockImplementation(async (path: string) => (path.startsWith('/api/v1/circles') ? { data: [] } : profile()));
+    await render(<CreatorProfile />);
+
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Circles' }));
+
+    expect(await screen.findByText('This creator hasn’t created any Circles yet.')).toBeTruthy();
   });
 
   test('a creator who offers consultations has a Consultations tab that opens their menu', async () => {

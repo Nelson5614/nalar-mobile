@@ -501,6 +501,31 @@ describe('<Watch /> laid out like YouTube', () => {
     expect(await screen.findByText('Agreed')).toBeTruthy();
   });
 
+  test('replying to a reply names them and stays in the same thread, not one level deeper', async () => {
+    serve();
+    mockPost.mockImplementation(async (path: string, body?: { content: string }) =>
+      path === '/api/v1/media/4/comments'
+        ? { id: 42, content: body?.content, created_at: new Date().toISOString(), user: { id: 2, name: 'John Fan' } }
+        : {},
+    );
+    await render(<Watch />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: '1 reply' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Reply to Sarah Creator' }));
+
+    const box = screen.getByPlaceholderText('Reply to Sarah Creator…');
+    expect(box).toHaveProp('value', '@Sarah Creator ');
+    await fireEvent.changeText(box, '@Sarah Creator Thanks again');
+    await fireEvent.press(screen.getByRole('button', { name: 'Post comment' }));
+
+    // The thread's first comment is the parent, so the reply sits beside the one it answers.
+    expect(mockPost).toHaveBeenCalledWith('/api/v1/media/4/comments', {
+      content: '@Sarah Creator Thanks again',
+      parent_id: 30,
+    });
+    expect(await screen.findByText('@Sarah Creator Thanks again')).toBeTruthy();
+  });
+
   test('a comment the creator’s filter blocks shows why', async () => {
     serve();
     mockPost.mockImplementation(async (path: string) => {

@@ -34,6 +34,9 @@ export default function Me() {
         <Button label="Buy credits" onPress={() => WebBrowser.openBrowserAsync(config.top_up.url)} />
       ) : null}
       <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
+      {config.features?.circles !== false ? (
+        <Button label="My circles" variant="secondary" onPress={() => router.push('/circles')} />
+      ) : null}
       <Button label="My consultations" variant="secondary" onPress={() => router.push('/consultations/mine')} />
       <Button
         label="Sign out"

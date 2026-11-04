@@ -50,6 +50,24 @@ function connect(config: RealtimeConfig): Echo<'reverb'> {
 }
 
 /**
+ * Joins a circle's presence channel and calls back on each new message.
+ * Returns null when the server publishes no realtime key, and the screen
+ * keeps polling instead.
+ */
+export function joinCircle(
+  config: RealtimeConfig | undefined,
+  circleId: string,
+  onChange: () => void,
+): { leave: () => void } | null {
+  if (!config?.key || !config.host) return null;
+
+  const name = `circle.${circleId}`;
+  connect(config).join(name).listen('.circle.message.sent', onChange);
+
+  return { leave: () => echo?.leave(name) };
+}
+
+/**
  * Joins a thread's private channel. Returns null when the server publishes no
  * realtime key, and the screen keeps polling instead.
  */

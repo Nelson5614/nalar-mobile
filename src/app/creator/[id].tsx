@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { CircleCard } from '@/components/circles';
 import { ThemedText } from '@/components/themed-text';
 import { Avatar, Button, ErrorText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -11,12 +12,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { api } from '@/lib/session';
 import { shortDate } from '@/lib/time';
-import type { CreatorProfileData } from '@/lib/types';
+import type { CircleSummary, CreatorProfileData } from '@/lib/types';
 
 type Loaded = { profile: CreatorProfileData } | { error: string };
 type Video = CreatorProfileData['videos'][number];
 type SeriesCard = CreatorProfileData['series'][number];
-type VideoTab = 'free' | 'premium' | 'series';
+type VideoTab = 'free' | 'premium';
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -41,6 +42,7 @@ export default function CreatorProfile() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [messageError, setMessageError] = useState('');
   const [videoTab, setVideoTab] = useState<VideoTab>('free');
+  const [mainTab, setMainTab] = useState<'videos' | 'series' | 'circles'>('videos');
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +106,9 @@ export default function CreatorProfile() {
           </View>
 
           <TabRow>
-            <Tab label="Videos" selected onPress={() => {}} />
+            <Tab label="Videos" selected={mainTab === 'videos'} onPress={() => setMainTab('videos')} />
+            <Tab label="Series" selected={mainTab === 'series'} onPress={() => setMainTab('series')} />
+            <Tab label="Circles" selected={mainTab === 'circles'} onPress={() => setMainTab('circles')} />
             {loaded.profile.can_offer_consultations ? (
               // A link on the web too: the menu and booking live on their own screen.
               <Tab
@@ -120,7 +124,21 @@ export default function CreatorProfile() {
             ) : null}
           </TabRow>
 
-          <VideosSection profile={loaded.profile} tab={videoTab} onTab={setVideoTab} />
+          {mainTab === 'videos' ? (
+            <VideosSection profile={loaded.profile} tab={videoTab} onTab={setVideoTab} />
+          ) : mainTab === 'series' ? (
+            <View style={styles.section}>
+              {loaded.profile.series.length ? (
+                loaded.profile.series.map((series) => (
+                  <SeriesStack key={series.id} series={series} profile={loaded.profile} />
+                ))
+              ) : (
+                <Empty text="This creator hasn’t published any series yet." />
+              )}
+            </View>
+          ) : (
+            <CirclesSection creatorId={loaded.profile.id} />
+          )}
         </ScrollView>
       )}
     </View>
@@ -144,7 +162,6 @@ function VideosSection({
       <TabRow>
         <Tab label={`Free (${free.length})`} selected={tab === 'free'} onPress={() => onTab('free')} />
         <Tab label={`Premium (${premium.length})`} selected={tab === 'premium'} onPress={() => onTab('premium')} />
-        <Tab label={`Series (${profile.series.length})`} selected={tab === 'series'} onPress={() => onTab('series')} />
       </TabRow>
 
       <View style={styles.section}>
@@ -154,19 +171,42 @@ function VideosSection({
           ) : (
             <Empty text="This creator hasn’t posted any free videos yet." />
           )
-        ) : tab === 'premium' ? (
-          premium.length ? (
-            premium.map((video) => <VideoCard key={video.id} video={video} isMe={profile.is_me} />)
-          ) : (
-            <Empty text="This creator hasn’t posted any premium videos yet." />
-          )
-        ) : profile.series.length ? (
-          profile.series.map((series) => <SeriesStack key={series.id} series={series} profile={profile} />)
+        ) : premium.length ? (
+          premium.map((video) => <VideoCard key={video.id} video={video} isMe={profile.is_me} />)
         ) : (
-          <Empty text="This creator hasn’t published any series yet." />
+          <Empty text="This creator hasn’t posted any premium videos yet." />
         )}
       </View>
     </>
+  );
+}
+
+/** The creator's circles, fetched when the tab is first opened, as the web loads them. */
+function CirclesSection({ creatorId }: { creatorId: number }) {
+  const [circles, setCircles] = useState<CircleSummary[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ data: CircleSummary[] }>(`/api/v1/circles?user_id=${creatorId}`)
+      .then((result) => !cancelled && setCircles(result.data))
+      .catch(() => !cancelled && setCircles([]));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creatorId]);
+
+  return (
+    <View style={styles.section}>
+      {circles === null ? (
+        <ActivityIndicator />
+      ) : circles.length ? (
+        circles.map((circle) => <CircleCard key={circle.id} circle={circle} />)
+      ) : (
+        <Empty text="This creator hasn’t created any Circles yet." />
+      )}
+    </View>
   );
 }
 

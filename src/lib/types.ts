@@ -101,6 +101,7 @@ export type VideoComment = {
   user: ChatUser | null;
   likes_count?: number;
   liked_by_me?: boolean;
+  is_liked?: boolean;
   replies_count?: number;
   replies?: VideoComment[];
 };
@@ -148,7 +149,16 @@ export type Spark = {
   caption: string | null;
   mux_playback_id: string | null;
   thumbnail_url: string | null;
-  creator?: { id: number; name: string } | null;
+  creator?: { id: number; name: string; profile_photo_url?: string | null } | null;
+  view_count?: number;
+  like_count?: number;
+  dislike_count?: number;
+  comment_count?: number;
+  share_count?: number;
+  save_count?: number;
+  is_liked?: boolean;
+  is_disliked?: boolean;
+  is_saved?: boolean;
 };
 
 export type SparksPage = { data: Spark[]; next_cursor: string | null };
@@ -245,4 +255,46 @@ export type LibraryOrder = {
   seller: { id: number; name: string } | null;
   product: { id: string; title: string; type: string; cover_image_url: string | null } | null;
   assets: LibraryAsset[];
+};
+
+export type CircleSummary = {
+  id: number;
+  public_id?: string | null;
+  title: string;
+  description?: string | null;
+  cover_image_url?: string | null;
+  is_free: boolean;
+  monthly_price_credits: number | null;
+  member_count?: number;
+  creator?: Creator | null;
+};
+
+export type CircleMembershipInfo = { id: number; status: 'active' | 'paused' | 'cancelled' | string; renews_at: string | null };
+
+export type MyCircle = CircleMembershipInfo & { circle: CircleSummary };
+
+export type CircleDetail = {
+  circle: CircleSummary;
+  membership: CircleMembershipInfo | null;
+  is_member: boolean;
+  is_creator: boolean;
+};
+
+export type CircleSession = {
+  id: number;
+  title: string;
+  scheduled_for: string;
+  duration_minutes: number;
+  status: 'scheduled' | 'live' | 'ended' | 'cancelled' | string;
+};
+
+export type CircleChatMessage = {
+  id: number;
+  body: string | null;
+  created_at: string | null;
+  user_id: number;
+  user: ChatUser | null;
+  attachment_url: string | null;
+  attachment_type: string | null;
+  attachment_name: string | null;
 };
