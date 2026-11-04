@@ -38,6 +38,7 @@ export default function Me() {
         <Button label="My circles" variant="secondary" onPress={() => router.push('/circles')} />
       ) : null}
       <Button label="My consultations" variant="secondary" onPress={() => router.push('/consultations/mine')} />
+      <Button label="Account settings" variant="secondary" onPress={() => router.push('/settings')} />
       <Button
         label="Sign out"
         variant="secondary"

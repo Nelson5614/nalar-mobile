@@ -16,8 +16,27 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export function Screen({ children, centered = false }: PropsWithChildren<{ centered?: boolean }>) {
+export function Screen({
+  children,
+  centered = false,
+  underHeader = false,
+}: PropsWithChildren<{ centered?: boolean; underHeader?: boolean }>) {
   const theme = useTheme();
+
+  // A pushed screen sits under the see-through navigation bar, so iOS pads the
+  // scroll view for the bar and the status bar both, as the other pushed
+  // screens do.
+  if (underHeader) {
+    return (
+      <ScrollView
+        style={{ backgroundColor: theme.background }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
+        {children}
+      </ScrollView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: theme.background }]}>

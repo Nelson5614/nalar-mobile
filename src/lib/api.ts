@@ -71,6 +71,6 @@ export function createApi({ baseUrl, getToken, onUnauthorized, fetchImpl = fetch
     get: <T = any>(path: string) => request<T>('GET', path),
     post: <T = any>(path: string, body?: unknown) => request<T>('POST', path, body),
     put: <T = any>(path: string, body?: unknown) => request<T>('PUT', path, body),
-    delete: <T = any>(path: string) => request<T>('DELETE', path),
+    delete: <T = any>(path: string, body?: unknown) => request<T>('DELETE', path, body),
   };
 }
