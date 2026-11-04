@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import Home from '@/app/(tabs)/home';
 import { ApiError } from '@/lib/api';
@@ -79,13 +79,90 @@ describe('<Home /> feed', () => {
     expect(await screen.findByText(/Nothing here yet/)).toBeTruthy();
   });
 
+  test('the categories from the web sit above the feed, with All chosen', async () => {
+    mockGet.mockResolvedValue(page([video(1)]));
+    await render(<Home />);
+    await screen.findByText('Video 1');
+
+    for (const name of ['All', 'Music', 'Entertainment', 'Culture Preservation', 'Education', 'Spirituality', 'News']) {
+      expect(screen.getByRole('button', { name })).toBeTruthy();
+    }
+    expect(screen.getByRole('button', { name: 'All' }).props.accessibilityState).toMatchObject({ selected: true });
+  });
+
+  test('choosing a category reloads the feed with only that category, and All goes back', async () => {
+    mockGet.mockResolvedValueOnce(page([video(1)])).mockResolvedValueOnce(page([video(5, { title: 'Drum circle' })]));
+    await render(<Home />);
+    await screen.findByText('Video 1');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Music' }));
+
+    expect(await screen.findByText('Drum circle')).toBeTruthy();
+    expect(screen.queryByText('Video 1')).toBeNull();
+    expect(mockGet).toHaveBeenLastCalledWith('/api/v1/feed?page=1&category=Music');
+    expect(screen.getByRole('button', { name: 'Music' }).props.accessibilityState).toMatchObject({ selected: true });
+
+    mockGet.mockResolvedValueOnce(page([video(1)]));
+    await fireEvent.press(screen.getByRole('button', { name: 'All' }));
+
+    expect(await screen.findByText('Video 1')).toBeTruthy();
+    expect(mockGet).toHaveBeenLastCalledWith('/api/v1/feed?page=1');
+  });
+
+  test('more pages stay in the chosen category', async () => {
+    mockGet
+      .mockResolvedValueOnce(page([video(1)]))
+      .mockResolvedValueOnce(page([video(3)], 1, 2))
+      .mockResolvedValueOnce(page([video(4)], 2, 2));
+    await render(<Home />);
+    await screen.findByText('Video 1');
+    await fireEvent.press(screen.getByRole('button', { name: 'Culture Preservation' }));
+    await screen.findByText('Video 3');
+
+    await fireEvent(screen.getByTestId('feed'), 'onEndReached');
+
+    expect(await screen.findByText('Video 4')).toBeTruthy();
+    expect(mockGet).toHaveBeenLastCalledWith('/api/v1/feed?page=2&category=Culture%20Preservation');
+  });
+
+  test('an answer for a category left behind does not replace the one chosen', async () => {
+    let finishMusic: (value: object) => void = () => {};
+    mockGet
+      .mockResolvedValueOnce(page([video(1)]))
+      .mockReturnValueOnce(new Promise((resolve) => (finishMusic = resolve)))
+      .mockResolvedValueOnce(page([video(7, { title: 'Evening news' })]));
+    await render(<Home />);
+    await screen.findByText('Video 1');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Music' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'News' }));
+    expect(await screen.findByText('Evening news')).toBeTruthy();
+
+    await act(async () => finishMusic(page([video(5, { title: 'Drum circle' })])));
+
+    expect(screen.queryByText('Drum circle')).toBeNull();
+    expect(screen.getByText('Evening news')).toBeTruthy();
+  });
+
+  test('an empty category says so by name', async () => {
+    mockGet.mockResolvedValueOnce(page([video(1)])).mockResolvedValueOnce(page([]));
+    await render(<Home />);
+    await screen.findByText('Video 1');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Spirituality' }));
+
+    expect(await screen.findByText('No Spirituality videos yet. Try another category.')).toBeTruthy();
+  });
+
   test('a failed load shows the safe message and can try again', async () => {
     mockGet
       .mockRejectedValueOnce(new ApiError(0, 'We can’t reach Nalar right now. Check your connection and try again.'))
       .mockResolvedValueOnce(page([video(1)]));
     await render(<Home />);
 
-    expect(await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.')).toBeTruthy();
+    expect(
+      await screen.findByText('We can’t reach Nalar right now. Check your connection and try again.'),
+    ).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
 
     expect(await screen.findByText('Video 1')).toBeTruthy();
