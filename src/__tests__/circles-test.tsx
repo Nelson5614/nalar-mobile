@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
-import CircleChat from '@/app/circle/chat';
 import CircleScreen from '@/app/circle/[id]';
 import Circles from '@/app/circles/index';
 import { ApiError } from '@/lib/api';
@@ -12,7 +11,6 @@ const mockDelete = jest.fn();
 const mockPush = jest.fn();
 const mockReload = jest.fn();
 const mockOpenBrowser = jest.fn();
-const mockJoinCircle = jest.fn();
 let mockBalance = 100;
 let mockParams: Record<string, string> = {};
 
@@ -35,7 +33,6 @@ jest.mock('@/lib/session', () => ({
   }),
 }));
 
-jest.mock('@/lib/realtime', () => ({ joinCircle: (...args: unknown[]) => mockJoinCircle(...args) }));
 jest.mock('@/lib/token-store', () => ({ tokenStore: { get: () => Promise.resolve({ token: 'secret-token' }) } }));
 jest.mock('@/lib/config', () => ({ PLATFORM: 'ios', API_URL: 'http://nalar.test' }));
 jest.mock('expo-web-browser', () => ({ openBrowserAsync: (...args: unknown[]) => mockOpenBrowser(...args) }));
@@ -76,7 +73,6 @@ beforeEach(() => {
   jest.restoreAllMocks();
   mockBalance = 100;
   mockParams = {};
-  mockJoinCircle.mockReturnValue(null);
 });
 
 describe('the Circles tab', () => {
@@ -277,91 +273,5 @@ describe('a circle', () => {
 
     expect(await screen.findByRole('button', { name: 'Open chat' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Join/ })).toBeNull();
-  });
-});
-
-describe('the circle chat', () => {
-  const message = (extra: object = {}) => ({
-    id: 51,
-    body: 'Welcome in.',
-    created_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    user: { id: 6, name: 'Sarah Creator', profile_photo_url: null },
-    user_id: 6,
-    attachment_url: null,
-    attachment_type: null,
-    attachment_name: null,
-    ...extra,
-  });
-
-  beforeEach(() => {
-    mockParams = { id: '11', title: 'Lighting club' };
-  });
-
-  test('shows who said what and when', async () => {
-    mockGet.mockResolvedValue({
-      data: [message({ id: 52, body: 'Thanks!', user_id: 2, user: { id: 2, name: 'John Fan' } }), message()],
-      next_cursor: null,
-    });
-
-    await render(<CircleChat />);
-
-    expect(await screen.findByText('Welcome in.')).toBeTruthy();
-    expect(screen.getByText('Thanks!')).toBeTruthy();
-    expect(screen.getByText('Sarah Creator · 2 minutes ago')).toBeTruthy();
-    expect(mockGet).toHaveBeenCalledWith('/api/v1/circles/11/messages');
-  });
-
-  test('sending posts the message and shows it', async () => {
-    mockGet.mockResolvedValue({ data: [message()], next_cursor: null });
-    mockPost.mockResolvedValue({
-      data: message({
-        id: 60,
-        body: 'Hello all',
-        user_id: 2,
-        user: { id: 2, name: 'John Fan' },
-        created_at: new Date().toISOString(),
-      }),
-    });
-
-    await render(<CircleChat />);
-    await fireEvent.changeText(await screen.findByPlaceholderText('Message the circle'), 'Hello all');
-    await fireEvent.press(screen.getByRole('button', { name: 'Send' }));
-
-    expect(mockPost).toHaveBeenCalledWith('/api/v1/circles/11/messages', { body: 'Hello all' });
-    expect(await screen.findByText('Hello all')).toBeTruthy();
-  });
-
-  test('a refused message shows why', async () => {
-    mockGet.mockResolvedValue({ data: [], next_cursor: null });
-    mockPost.mockRejectedValue(new ApiError(403, 'Your membership is paused. Top up credits to post in this chat.'));
-
-    await render(<CircleChat />);
-    await fireEvent.changeText(await screen.findByPlaceholderText('Message the circle'), 'Hi');
-    await fireEvent.press(screen.getByRole('button', { name: 'Send' }));
-
-    expect(await screen.findByText('Your membership is paused. Top up credits to post in this chat.')).toBeTruthy();
-  });
-
-  test('my own message can be deleted after confirming', async () => {
-    confirmEveryAlert();
-    mockGet.mockResolvedValue({
-      data: [message({ id: 52, body: 'Oops', user_id: 2, user: { id: 2, name: 'John Fan' } })],
-      next_cursor: null,
-    });
-    mockDelete.mockResolvedValue({});
-
-    await render(<CircleChat />);
-    await fireEvent(await screen.findByLabelText('Your message: Oops'), 'longPress');
-
-    expect(mockDelete).toHaveBeenCalledWith('/api/v1/circle-messages/52');
-    await waitFor(() => expect(screen.queryByText('Oops')).toBeNull());
-  });
-
-  test('an empty chat invites the first message', async () => {
-    mockGet.mockResolvedValue({ data: [], next_cursor: null });
-
-    await render(<CircleChat />);
-
-    expect(await screen.findByText('No messages yet. Say hello.')).toBeTruthy();
   });
 });

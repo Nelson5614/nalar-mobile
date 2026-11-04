@@ -2,7 +2,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { Image } from 'expo-image';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -23,6 +23,15 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { freshLink } from '@/lib/chat-media';
 import type { ChatMessage } from '@/lib/types';
+
+/**
+ * Where a thread renews an expired file link. Direct messages and circles
+ * keep their files apart and their ids overlap, so each keys its own cache.
+ */
+export const AttachmentLinks = createContext<{ renew: (messageId: number) => Promise<string>; cachePrefix: string }>({
+  renew: freshLink,
+  cachePrefix: 'dm',
+});
 
 export const formatDuration = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
@@ -168,14 +177,15 @@ function Photo({ message, onError, onLongPress }: AttachmentProps) {
   const [uri, setUri] = useState(message.attachment_url ?? null);
   const [retried, setRetried] = useState(false);
   const [open, setOpen] = useState(false);
+  const links = useContext(AttachmentLinks);
   // The signed link changes on every fetch; the id keeps one cached copy.
-  const source = uri ? { uri, cacheKey: `dm-${message.id}` } : null;
+  const source = uri ? { uri, cacheKey: `${links.cachePrefix}-${message.id}` } : null;
 
   async function refresh() {
     if (retried) return;
     setRetried(true);
     try {
-      setUri(await freshLink(message.id));
+      setUri(await links.renew(message.id));
     } catch {
       onError('That photo could not be loaded.');
     }
@@ -210,11 +220,12 @@ function Photo({ message, onError, onLongPress }: AttachmentProps) {
 function Document({ message, onError, onLongPress }: AttachmentProps) {
   const theme = useTheme();
   const [opening, setOpening] = useState(false);
+  const links = useContext(AttachmentLinks);
 
   async function open() {
     setOpening(true);
     try {
-      await WebBrowser.openBrowserAsync(await freshLink(message.id));
+      await WebBrowser.openBrowserAsync(await links.renew(message.id));
     } catch {
       onError('That file could not be opened. Please try again.');
     } finally {
@@ -248,6 +259,7 @@ function VoiceNote({ message, onError, onLongPress }: AttachmentProps) {
   const status = useAudioPlayerStatus(player);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const links = useContext(AttachmentLinks);
   const total = message.attachment_duration ?? 0;
   const playing = status.playing;
 
@@ -257,7 +269,7 @@ function VoiceNote({ message, onError, onLongPress }: AttachmentProps) {
       if (!loaded) {
         setLoading(true);
         await setAudioModeAsync({ playsInSilentMode: true });
-        player.replace({ uri: await freshLink(message.id) });
+        player.replace({ uri: await links.renew(message.id) });
         setLoaded(true);
       } else if (status.didJustFinish || (status.duration && status.currentTime >= status.duration)) {
         await player.seekTo(0);

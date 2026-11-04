@@ -287,14 +287,3 @@ export type CircleSession = {
   duration_minutes: number;
   status: 'scheduled' | 'live' | 'ended' | 'cancelled' | string;
 };
-
-export type CircleChatMessage = {
-  id: number;
-  body: string | null;
-  created_at: string | null;
-  user_id: number;
-  user: ChatUser | null;
-  attachment_url: string | null;
-  attachment_type: string | null;
-  attachment_name: string | null;
-};

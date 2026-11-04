@@ -15,7 +15,8 @@ export type ThreadEvents = {
   // Something in the thread changed: a new, edited or reacted-to message.
   onChange: () => void;
   onDeleted: (messageId: number) => void;
-  onTyping: () => void;
+  // A circle names who is typing; a direct message has only one other person.
+  onTyping: (name?: string) => void;
 };
 
 export type ThreadChannel = { typing: () => void; leave: () => void };
@@ -50,21 +51,31 @@ function connect(config: RealtimeConfig): Echo<'reverb'> {
 }
 
 /**
- * Joins a circle's presence channel and calls back on each new message.
- * Returns null when the server publishes no realtime key, and the screen
- * keeps polling instead.
+ * Joins a circle's presence channel. A group has many people typing, so each
+ * whisper carries the typist's name. Returns null when the server publishes
+ * no realtime key, and the screen keeps polling instead.
  */
-export function joinCircle(
+export function joinCircleThread(
   config: RealtimeConfig | undefined,
   circleId: string,
-  onChange: () => void,
-): { leave: () => void } | null {
+  myName: string,
+  events: ThreadEvents,
+): ThreadChannel | null {
   if (!config?.key || !config.host) return null;
 
   const name = `circle.${circleId}`;
-  connect(config).join(name).listen('.circle.message.sent', onChange);
+  const channel = connect(config)
+    .join(name)
+    .listen('.circle.message.sent', events.onChange)
+    .listen('.circle.message.changed', (e: { id: number; deleted: boolean }) =>
+      e.deleted ? events.onDeleted(e.id) : events.onChange(),
+    )
+    .listenForWhisper('typing', (e: { name?: string }) => events.onTyping(e?.name));
 
-  return { leave: () => echo?.leave(name) };
+  return {
+    typing: () => channel.whisper('typing', { name: myName }),
+    leave: () => echo?.leave(name),
+  };
 }
 
 /**
@@ -85,7 +96,7 @@ export function joinThread(
     .listen('.message.updated', events.onChange)
     .listen('.message.reactions', events.onChange)
     .listen('.message.deleted', (e: { id: number }) => events.onDeleted(e.id))
-    .listenForWhisper('typing', events.onTyping);
+    .listenForWhisper('typing', () => events.onTyping());
 
   return {
     typing: () => channel.whisper('typing', {}),
