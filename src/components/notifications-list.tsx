@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
@@ -10,24 +10,60 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { api } from '@/lib/session';
+import { timeAgo } from '@/lib/time';
 import type { AppNotification, NotificationFeed } from '@/lib/types';
+import { refreshUnread } from '@/lib/unread';
 
-const fetchFeed = () => api.get<NotificationFeed>('/api/v1/notifications');
+const fetchFeed = (page = 1) =>
+  api.get<NotificationFeed>(page > 1 ? `/api/v1/notifications?page=${page}` : '/api/v1/notifications');
 const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Please try again.');
 
-// Videos are the only notification target with a screen in the app so far.
-const videoIdIn = (url: string | null) => url?.match(/^\/watch\/([^/?#]+)/)?.[1] ?? null;
+/**
+ * The server names the screen (NotificationFeedService::target). A screen this
+ * version of the app does not know opens nothing, so an older install never
+ * lands somewhere wrong.
+ */
+function routeFor(target: AppNotification['target']): Href | null {
+  if (!target) return null;
+  const id = target.id ?? '';
+
+  switch (target.screen) {
+    case 'watch':
+      return { pathname: '/watch/[id]', params: { id } };
+    case 'conversation':
+      return { pathname: '/conversation/[id]', params: { id } };
+    case 'circle':
+      return { pathname: '/circle/[id]', params: { id } };
+    case 'creator':
+      return { pathname: '/creator/[id]', params: { id } };
+    case 'consultations':
+      return '/consultations/mine';
+    case 'library':
+      return '/library';
+    default:
+      return null;
+  }
+}
 
 export default function NotificationsList() {
   const [items, setItems] = useState<AppNotification[]>([]);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  const show = (feed: NotificationFeed) => {
+    setItems(feed.data);
+    setPage(feed.meta.current_page);
+    setLastPage(feed.meta.last_page);
+  };
 
   useEffect(() => {
     let cancelled = false;
     fetchFeed()
-      .then((feed) => !cancelled && setItems(feed.data))
+      .then((feed) => !cancelled && show(feed))
       .catch((e) => !cancelled && setError(messageOf(e)))
       .finally(() => !cancelled && setLoading(false));
 
@@ -39,7 +75,7 @@ export default function NotificationsList() {
   async function refresh() {
     setRefreshing(true);
     try {
-      setItems((await fetchFeed()).data);
+      show(await fetchFeed());
       setError('');
     } catch (e) {
       setError(messageOf(e));
@@ -48,31 +84,55 @@ export default function NotificationsList() {
     }
   }
 
+  async function loadMore() {
+    if (loading || loadingMore || page >= lastPage) return;
+    setLoadingMore(true);
+    try {
+      const older = await fetchFeed(page + 1);
+      setItems((current) => [...current, ...older.data.filter((n) => !current.some((c) => c.id === n.id))]);
+      setPage(older.meta.current_page);
+      setLastPage(older.meta.last_page);
+    } catch {
+      // What is shown stays; scrolling again retries.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   // Marking read is shown straight away; if the request fails the next load
   // shows it unread again, which is harmless.
   function open(notification: AppNotification) {
     if (!notification.read) {
       setItems((current) => current.map((n) => (n.id === notification.id ? { ...n, read: true } : n)));
-      api.post(`/api/v1/notifications/${notification.id}/read`).catch(() => {});
+      api
+        .post(`/api/v1/notifications/${notification.id}/read`)
+        .then(refreshUnread)
+        .catch(() => {});
     }
 
-    const videoId = videoIdIn(notification.url);
-    if (videoId) router.push({ pathname: '/watch/[id]', params: { id: videoId } });
+    const route = routeFor(notification.target);
+    if (route) router.push(route);
   }
 
   function markAllRead() {
     setItems((current) => current.map((n) => ({ ...n, read: true })));
-    api.post('/api/v1/notifications/read-all').catch(() => {});
+    api
+      .post('/api/v1/notifications/read-all')
+      .then(refreshUnread)
+      .catch(() => {});
   }
 
   const hasUnread = items.some((n) => !n.read);
 
   return (
     <FlatList
+      testID="notifications"
       data={items}
       keyExtractor={(n) => n.id}
       renderItem={({ item }) => <NotificationRow notification={item} onPress={() => open(item)} />}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
       contentContainerStyle={styles.content}
       ListHeaderComponent={
         hasUnread ? (
@@ -81,6 +141,7 @@ export default function NotificationsList() {
           </ThemedText>
         ) : undefined
       }
+      ListFooterComponent={loadingMore ? <ActivityIndicator /> : undefined}
       ListEmptyComponent={
         loading ? (
           <ActivityIndicator />
@@ -98,6 +159,7 @@ export default function NotificationsList() {
 
 function NotificationRow({ notification, onPress }: { notification: AppNotification; onPress: () => void }) {
   const theme = useTheme();
+  const when = timeAgo(notification.created_at);
 
   return (
     <Pressable
@@ -120,9 +182,14 @@ function NotificationRow({ notification, onPress }: { notification: AppNotificat
           <SymbolView name="bell.fill" tintColor={theme.textSecondary} size={22} />
         </View>
       )}
-      <ThemedText type={notification.read ? 'small' : 'smallBold'} style={styles.message}>
-        {notification.message}
-      </ThemedText>
+      <View style={styles.text}>
+        <ThemedText type={notification.read ? 'small' : 'smallBold'}>{notification.message}</ThemedText>
+        {when ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {when}
+          </ThemedText>
+        ) : null}
+      </View>
       <View style={[styles.dot, { backgroundColor: notification.read ? 'transparent' : theme.primary }]} />
     </Pressable>
   );
@@ -135,5 +202,5 @@ const styles = StyleSheet.create({
   avatar: { width: 48, height: 48, borderRadius: 24 },
   iconAvatar: { alignItems: 'center', justifyContent: 'center' },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  message: { flex: 1 },
+  text: { flex: 1, gap: 2 },
 });

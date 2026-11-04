@@ -4,6 +4,7 @@ import type { ColorValue } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
+import { useUnreadCount } from '@/lib/unread';
 
 function TabIcon({ name, color }: { name: SymbolViewProps['name']; color: ColorValue }) {
   return <SymbolView name={name} tintColor={color} size={24} />;
@@ -12,6 +13,8 @@ function TabIcon({ name, color }: { name: SymbolViewProps['name']; color: ColorV
 export default function TabsLayout() {
   const { launch } = useSession();
   const theme = useTheme();
+  // Notifications plus messages, both of which live behind the Inbox tab.
+  const unread = useUnreadCount();
 
   // The tabs are the signed-in app. Anyone else goes back through the launch gate.
   if (launch?.route !== 'home') return <Redirect href="/" />;
@@ -37,6 +40,7 @@ export default function TabsLayout() {
         options={{
           title: 'Inbox',
           tabBarIcon: ({ color }) => <TabIcon name="bubble.left.and.bubble.right.fill" color={color} />,
+          tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
         }}
       />
       <Tabs.Screen

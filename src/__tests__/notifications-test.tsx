@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import NotificationsList from '@/components/notifications-list';
 import { ApiError } from '@/lib/api';
@@ -18,11 +18,15 @@ jest.mock('expo-router', () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 
+const mockRefreshUnread = jest.fn();
+jest.mock('@/lib/unread', () => ({ refreshUnread: () => mockRefreshUnread() }));
+
 const note = (id: string, message: string, extra: object = {}) => ({
   id,
   type: 'comment_reply',
   message,
   url: null,
+  target: null,
   image_url: null,
   read: false,
   created_at: '2026-11-02T10:00:00+00:00',
@@ -73,8 +77,8 @@ describe('<NotificationsList />', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/v1/notifications');
   });
 
-  test('a video notification is marked read and opens the video', async () => {
-    mockGet.mockResolvedValue(feed([note('a', 'New video from Sarah', { url: '/watch/abc123?comment=9' })]));
+  test('a video notification is marked read, opens the video and refreshes the unread badge', async () => {
+    mockGet.mockResolvedValue(feed([note('a', 'New video from Sarah', { target: { screen: 'watch', id: 'abc123' } })]));
     await render(<NotificationsList />);
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Unread: New video from Sarah' }));
@@ -82,6 +86,62 @@ describe('<NotificationsList />', () => {
     expect(mockPost).toHaveBeenCalledWith('/api/v1/notifications/a/read');
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/watch/[id]', params: { id: 'abc123' } });
     expect(await screen.findByRole('button', { name: 'New video from Sarah' })).toBeTruthy();
+    await waitFor(() => expect(mockRefreshUnread).toHaveBeenCalled());
+  });
+
+  test.each([
+    [
+      { screen: 'conversation', id: '12' },
+      { pathname: '/conversation/[id]', params: { id: '12' } },
+    ],
+    [
+      { screen: 'circle', id: '4' },
+      { pathname: '/circle/[id]', params: { id: '4' } },
+    ],
+    [
+      { screen: 'creator', id: 'c6' },
+      { pathname: '/creator/[id]', params: { id: 'c6' } },
+    ],
+    [{ screen: 'consultations', id: null }, '/consultations/mine'],
+    [{ screen: 'library', id: null }, '/library'],
+  ])('a notification for %j opens that screen', async (target, route) => {
+    mockGet.mockResolvedValue(feed([note('a', 'Open me', { target })]));
+    await render(<NotificationsList />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Unread: Open me' }));
+
+    expect(mockPush).toHaveBeenCalledWith(route);
+  });
+
+  test('a screen this version of the app does not know opens nothing', async () => {
+    mockGet.mockResolvedValue(feed([note('a', 'From the future', { target: { screen: 'studio', id: '1' } })]));
+    await render(<NotificationsList />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Unread: From the future' }));
+
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  test('each row says how long ago it arrived', async () => {
+    const threeHoursAgo = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+    mockGet.mockResolvedValue(feed([note('a', 'Sarah replied to your comment', { created_at: threeHoursAgo })]));
+
+    await render(<NotificationsList />);
+
+    expect(await screen.findByText('3 hours ago')).toBeTruthy();
+  });
+
+  test('scrolling down loads older notifications', async () => {
+    mockGet
+      .mockResolvedValueOnce({ data: [note('a', 'Newest')], meta: { current_page: 1, last_page: 2, unread_count: 2 } })
+      .mockResolvedValueOnce({ data: [note('b', 'Older')], meta: { current_page: 2, last_page: 2, unread_count: 2 } });
+    await render(<NotificationsList />);
+    await screen.findByText('Newest');
+
+    await fireEvent(screen.getByTestId('notifications'), 'onEndReached');
+
+    expect(await screen.findByText('Older')).toBeTruthy();
+    expect(mockGet).toHaveBeenLastCalledWith('/api/v1/notifications?page=2');
   });
 
   test('a notification the app cannot open yet is only marked read', async () => {
@@ -101,6 +161,7 @@ describe('<NotificationsList />', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Mark all as read' }));
 
     expect(mockPost).toHaveBeenCalledWith('/api/v1/notifications/read-all');
+    await waitFor(() => expect(mockRefreshUnread).toHaveBeenCalled());
     expect(await screen.findByRole('button', { name: 'One' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Two' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Mark all as read' })).toBeNull();

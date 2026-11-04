@@ -33,6 +33,7 @@ import { messageText } from '@/lib/messages';
 import type { ThreadChannel, ThreadEvents } from '@/lib/realtime';
 import { api } from '@/lib/session';
 import type { ChatMessage } from '@/lib/types';
+import { refreshUnread } from '@/lib/unread';
 
 // Without a realtime connection an open thread checks on this interval; with
 // one, the slower check only catches anything a dropped socket missed.
@@ -164,6 +165,8 @@ export function ChatThread<Header>({
         setMessages(first.messages);
         setPage(first.meta.current_page);
         setLastPage(first.meta.last_page);
+        // Opening a direct message marks it read on the server.
+        refreshUnread();
       })
       .catch((e) => !cancelled && setLoadError(messageOf(e)))
       .finally(() => !cancelled && setLoading(false));

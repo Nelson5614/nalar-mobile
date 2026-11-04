@@ -202,6 +202,8 @@ export type AppNotification = {
   type: string | null;
   message: string;
   url: string | null;
+  // The app screen to open; null when the app has none for it yet.
+  target: { screen: string; id: string | null } | null;
   image_url: string | null;
   read: boolean;
   created_at: string | null;
